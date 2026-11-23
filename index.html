@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>片场 · AI 短剧工作室</title>
+<link rel="stylesheet" href="prototype.css">
+<script src="prototype.js" defer></script>
+</head>
+<body>
+<header class="masthead">
+  <div class="brand"><span class="brand-icon" aria-hidden="true">▥</span><strong>片场</strong><span class="brand-note">AI 短剧工作室</span></div>
+  <span class="workspace"><span class="signal"></span> 制作工作台</span>
+</header>
+<main class="layout">
+  <aside class="projects pane" aria-label="项目">
+    <div class="pane-heading"><h2>项目列表</h2><button id="new-project" class="new-button" type="button">＋ 新建</button></div>
+    <div id="projects"></div>
+  </aside>
+  <section class="production" aria-label="项目制作">
+    <div class="project-header pane">
+      <div><div class="project-kicker">项目概览</div><h1 id="project-title"></h1></div>
+      <div class="project-actions"><span id="project-status"></span><button id="toggle-project" type="button"></button></div>
+      <div class="progress-label"><span>制作进度</span><strong id="progress-text"></strong></div>
+      <progress id="progress" max="100" value="0"></progress>
+      <div id="project-summary" class="project-summary"></div>
+    </div>
+    <section class="graph pane" aria-label="任务图">
+      <div class="pane-heading graph-heading"><div><h2>任务流程</h2><span id="task-count"></span></div><div class="quick-actions"><button id="find-running" type="button">定位运行</button><button id="find-timeout" type="button">定位超时</button></div></div>
+      <div id="viewport" class="viewport" aria-label="任务画布">
+        <div id="world" class="world"><svg width="890" height="500" aria-hidden="true">
+          <defs>
+            <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 0L8 4L0 8Z" fill="#77758b"></path>
+            </marker>
+            <marker id="arrow-active" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 0L8 4L0 8Z" fill="#b5a5ff"></path>
+            </marker>
+          </defs>
+          <g id="connections"></g>
+        </svg><div id="nodes"></div></div>
+        <div id="task-detail" class="task-detail" hidden></div>
+        <div class="view-tools"><button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level"></span><button id="zoom-in" type="button" aria-label="放大">＋</button><button id="fit" type="button">全图</button></div>
+      </div>
+      <div class="legend" aria-label="任务状态"><span class="complete">完成</span><span class="running">运行</span><span class="timeout">超时</span><span class="waiting">等待</span></div>
+    </section>
+  </section>
+  <aside class="assets pane" aria-label="素材库">
+    <div class="pane-heading"><h2>素材库</h2><span id="asset-count" class="asset-count"></span></div>
+    <div id="asset-controls"></div><div id="asset-list" class="asset-list"></div>
+  </aside>
+</main>
+<dialog id="create-dialog">
+  <form id="create-form">
+    <div class="dialog-heading"><h2>创建项目</h2><button type="button" data-close="create-dialog" aria-label="关闭">×</button></div>
+    <label for="idea">短剧 Idea</label>
+    <textarea id="idea" rows="5" required placeholder="例如：一名失业配音员发现，自己能听见角色没说出口的台词。"></textarea>
+    <div class="dialog-actions"><button type="submit" class="primary">创建项目</button></div>
+  </form>
+</dialog>
+<dialog id="asset-dialog"><div id="asset-preview"></div></dialog>
+</body>
+</html>
