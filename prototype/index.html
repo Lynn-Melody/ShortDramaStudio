@@ -10,7 +10,7 @@
 <body>
 <header class="masthead">
   <div class="brand"><span class="brand-icon" aria-hidden="true">▥</span><strong>片场</strong><span class="brand-note">AI 短剧工作室</span></div>
-  <span class="workspace"><span class="signal"></span> 制作工作台</span>
+  <div class="header-actions"><span class="workspace"><span class="signal"></span> 制作工作台</span><button id="theme-toggle" type="button" aria-label="切换深色主题">☾ 深色</button></div>
 </header>
 <main class="layout">
   <aside class="projects pane" aria-label="项目">
@@ -26,17 +26,9 @@
       <div id="project-summary" class="project-summary"></div>
     </div>
     <section class="graph pane" aria-label="任务图">
-      <div class="pane-heading graph-heading"><div><h2>任务流程</h2><span id="task-count"></span></div><div class="quick-actions"><button id="find-running" type="button">定位运行</button><button id="find-timeout" type="button">定位超时</button></div></div>
+      <div class="pane-heading graph-heading"><div><button id="graph-back" type="button" aria-label="返回上一层" hidden>←</button><h2 id="graph-title">运行路径</h2><span id="task-count"></span></div><div class="quick-actions"><button id="find-running" type="button">定位运行</button><button id="find-timeout" type="button">定位超时</button></div></div>
       <div id="viewport" class="viewport" aria-label="任务画布">
-        <div id="world" class="world"><svg width="890" height="500" aria-hidden="true">
-          <defs>
-            <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0 0L8 4L0 8Z" fill="#77758b"></path>
-            </marker>
-            <marker id="arrow-active" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0 0L8 4L0 8Z" fill="#b5a5ff"></path>
-            </marker>
-          </defs>
+        <span class="graph-hint">双击节点查看子任务</span><div id="world" class="world"><svg width="1" height="1" aria-hidden="true">
           <g id="connections"></g>
         </svg><div id="nodes"></div></div>
         <div id="task-detail" class="task-detail" hidden></div>
@@ -46,7 +38,7 @@
     </section>
   </section>
   <aside class="assets pane" aria-label="素材库">
-    <div class="pane-heading"><h2>素材库</h2><span id="asset-count" class="asset-count"></span></div>
+    <div class="pane-heading"><h2>素材库</h2><div class="asset-heading-actions"><span id="asset-count" class="asset-count"></span><button id="expand-assets" type="button">展开</button></div></div>
     <div id="asset-controls"></div><div id="asset-list" class="asset-list"></div>
   </aside>
 </main>
@@ -58,6 +50,7 @@
     <div class="dialog-actions"><button type="submit" class="primary">创建项目</button></div>
   </form>
 </dialog>
+<dialog id="library-dialog" aria-label="展开的素材库"></dialog>
 <dialog id="asset-dialog"><div id="asset-preview"></div></dialog>
 </body>
 </html>

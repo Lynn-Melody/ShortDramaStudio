@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
-const { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups } = require('./prototype.js');
+const { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph } = require('./prototype.js');
 
 test('the standalone entry page loads its stylesheet and script from the same folder', () => {
   const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
@@ -17,7 +17,7 @@ test('the standalone entry page loads its stylesheet and script from the same fo
 
 test('progress reflects completed nodes and project status', () => {
   const project = makeProject(1, '午夜来电');
-  assert.equal(progress(project), 50);
+  assert.equal(progress(project), 68);
   assert.equal(projectState(project)[0], '运行中');
   project.paused = true;
   assert.equal(projectState(project)[0], '已暂停');
@@ -28,19 +28,21 @@ test('progress reflects completed nodes and project status', () => {
 
 test('an active task may finish during pause without releasing its dependent task', () => {
   const project = makeProject(1, '午夜来电');
-  const board = project.tasks.find(task => task.id === 'board2');
+  const voice = project.tasks.find(task => task.id === 'voice2');
   project.paused = true;
-  board.state = 'complete';
-  assert.equal(progress(project), 58);
+  voice.state = 'complete';
+  assert.equal(progress(project), 71);
   assert.deepEqual(ready(project), []);
   assert.equal(project.tasks.find(task => task.id === 'video2').state, 'waiting');
   project.paused = false;
   assert.deepEqual(ready(project).map(task => task.id), ['video2']);
 });
 
-test('a new project starts with the root task ready', () => {
+test('a new project has a waiting root and starts with planning', () => {
   const project = makeProject(1, '新项目', 'new');
   assert.equal(progress(project), 0);
+  assert.equal(project.tasks[0].state, 'waiting');
+  assert.equal(project.tasks[0].name, '短剧制作');
   assert.deepEqual(ready(project).map(task => task.id), ['idea']);
 });
 
@@ -61,23 +63,51 @@ test('task output preserves exact versions and works independently of library fi
   assert.deepEqual(libraryAssets(project, { type: '全部', episode: '1', shot: '01' }), [old, latest]);
 });
 
-test('the narrow task canvas fits all nodes at readable text size', () => {
-  const { graphLayout, fitGraph } = require('./prototype.js');
-  const project = makeProject(1, '午夜来电');
+test('the running tree merges shared ancestors and keeps its root when nothing runs', () => {
+  const { tasks } = makeProject(1, '午夜来电');
+  assert.deepEqual(visibleTasks(tasks).map(task => task.id), ['root', 'episodes', 'ep2', 'av2', 'voice2', 'silent2']);
+  for (const task of tasks.filter(task => task.state === 'running')) task.state = 'complete';
+  assert.deepEqual(visibleTasks(tasks).map(task => task.id), ['root']);
+});
+
+test('the selected subtree includes children and grandchildren across every state', () => {
+  const { tasks } = makeProject(1, '午夜来电');
+  const visible = visibleTasks(tasks, 'ep2');
+  assert.deepEqual([...new Set(visible.map(task => task.state))].sort(), ['complete', 'running', 'timeout', 'waiting']);
+  assert.ok(visible.some(task => task.id === 'voice2'));
+  assert.ok(!visibleTasks(tasks, 'episodes').some(task => task.id === 'voice2'));
+  assert.deepEqual(visibleTasks(tasks, 'voice2').map(task => task.id), ['voice2']);
+});
+
+test('the narrow task canvas fits all visible circles without clipping', () => {
+  const { tasks } = makeProject(1, '午夜来电');
   const width = 445;
   const height = 530;
-  const graph = graphLayout(project.tasks, width);
-  const view = fitGraph(graph, width, height);
-
-  assert.equal(graph.compact, true);
-  assert.equal(graph.nodes.length, project.tasks.length);
-  assert.ok(graph.fontSize * view.zoom >= 11);
-  assert.ok(12 * view.zoom >= 11);
-  for (const node of graph.nodes) {
-    assert.ok(view.x + node.x * view.zoom >= 0);
-    assert.ok(view.y + node.y * view.zoom >= 0);
-    assert.ok(view.x + (node.x + graph.nodeWidth) * view.zoom <= width);
-    assert.ok(view.y + (node.y + graph.nodeHeight) * view.zoom <= height);
+  for (const subtree of [null, 'root', 'ep2', 'voice2']) {
+    const graph = graphLayout(tasks, subtree);
+    const view = fitGraph(graph, width, height);
+    for (const node of graph.nodes) {
+      assert.ok(view.x + (node.x - 15) * view.zoom >= 0);
+      assert.ok(view.y + (node.y - 15) * view.zoom >= 0);
+      assert.ok(view.x + (node.x + 15) * view.zoom <= width);
+      assert.ok(view.y + (node.y + 15) * view.zoom <= height);
+    }
   }
-  assert.equal(graphLayout(project.tasks, 860).compact, false);
+});
+
+test('asset scope and keyword search can be combined', () => {
+  const project = makeProject(1, '午夜来电');
+  const episode = { name: '雨夜电话亭', episode: '1', shot: '01', type: '分镜' };
+  const common = { name: '电话亭设置', episode: 'common', type: '角色、场景与道具' };
+  project.assets.push(episode, common);
+  assert.deepEqual(libraryAssets(project, { type: '全部', query: ' 电话亭 ' }), [episode, common]);
+  assert.deepEqual(libraryAssets(project, { type: '全部', query: '电话亭', episode: 'common' }), [common]);
+  assert.deepEqual(libraryAssets(project, { type: '分镜', query: '电话亭', episode: '1', shot: '01' }), [episode]);
+});
+
+test('delivery filtering includes the episode video, captions, and editable timeline', () => {
+  const project = makeProject(1, '午夜来电');
+  const delivery = ['视频', '交付', '交付'].map(type => ({ task: 'deliver', type, episode: '1' }));
+  project.assets.push(...delivery, { task: 'video2', type: '视频', episode: '2' });
+  assert.deepEqual(libraryAssets(project, { type: '交付', episode: '1' }), delivery);
 });

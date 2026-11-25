@@ -1,56 +1,89 @@
 'use strict';
 
 const states = { waiting: '等待', running: '运行', timeout: '超时', complete: '完成' };
-const types = ['全部', '剧本', '角色与场景', '分镜', '音频', '视频'];
-const columns = ['策划', '剧本与设定', '镜头制作', '音视频', '交付'];
+const types = ['全部', '剧本', '角色、场景与道具', '分镜', '音频', '视频', '交付'];
 const blueprint = [
-  ['idea', '创意拆解', 0, 206, [], 'complete'],
-  ['outline', '分集大纲', 1, 88, ['idea'], 'complete'],
-  ['cast', '角色与场景设定', 1, 206, ['idea'], 'complete'],
-  ['script', '分集剧本', 1, 324, ['outline'], 'complete'],
-  ['board1', '第 1 集分镜', 2, 88, ['script', 'cast'], 'complete'],
-  ['board2', '第 2 集分镜', 2, 206, ['script', 'cast'], 'running'],
-  ['voice', '角色试音', 2, 324, ['cast'], 'complete'],
-  ['video', '第 1 集镜头生成', 3, 88, ['board1'], 'running'],
-  ['sound', '配乐生成', 3, 206, ['script'], 'timeout'],
-  ['video2', '第 2 集镜头生成', 3, 324, ['board2'], 'waiting'],
-  ['rough', '粗剪合成', 4, 146, ['video', 'video2', 'voice'], 'waiting'],
-  ['deliver', '成片导出', 4, 267, ['rough', 'sound'], 'waiting'],
+  ['root', '短剧制作', null, [], 'waiting'],
+  ['plan', '全剧规划', 'root', [], 'complete'],
+  ['idea', '创意与世界观', 'plan', [], 'complete'],
+  ['outline', '分集大纲', 'plan', ['idea'], 'complete'],
+  ['global', '全局关键素材生成', 'root', ['plan'], 'complete'],
+  ['cast', '人物与场景', 'global', ['plan'], 'complete'],
+  ['props', '关键道具', 'global', ['plan'], 'complete'],
+  ['episodes', '全部剧集制作', 'root', ['global'], 'waiting'],
+  ['ep1', '第 1 集制作', 'episodes', ['global'], 'complete'],
+  ['script', '制作分集剧本', 'ep1', ['global'], 'complete'],
+  ['structure1', '分集剧本结构化', 'ep1', ['script'], 'complete'],
+  ['key1', '分集关键素材制作', 'ep1', ['structure1'], 'complete'],
+  ['board1', '制作分集全部分镜图', 'ep1', ['key1'], 'complete'],
+  ['av1', '生成所有分镜视频及音频', 'ep1', ['board1'], 'complete'],
+  ['voice', '角色试音', 'av1', ['board1'], 'complete'],
+  ['video', '第 1 集镜头生成', 'av1', ['voice'], 'complete'],
+  ['deliver', '剪辑与合成', 'ep1', ['av1'], 'complete'],
+  ['ep2', '第 2 集制作', 'episodes', ['ep1'], 'waiting'],
+  ['script2', '制作分集剧本', 'ep2', ['ep1'], 'complete'],
+  ['structure2', '分集剧本结构化', 'ep2', ['script2'], 'complete'],
+  ['key2', '分集关键素材制作', 'ep2', ['structure2'], 'complete'],
+  ['board2', '制作分集全部分镜图', 'ep2', ['key2'], 'complete'],
+  ['av2', '生成所有分镜视频及音频', 'ep2', ['board2'], 'waiting'],
+  ['voice2', '镜头 01 · 对白配音', 'av2', ['board2'], 'running'],
+  ['video2', '镜头 01 · 视频生成', 'av2', ['voice2'], 'waiting'],
+  ['silent2', '镜头 02 · 视频生成', 'av2', ['board2'], 'running'],
+  ['sound', '环境音与动作音效', 'av2', ['board2'], 'timeout'],
+  ['deliver2', '剪辑与合成', 'ep2', ['av2'], 'waiting'],
 ];
 
+const rootId = 'root';
 
-const compactSlots = [
-  [0, 0], [0, 1], [0, 2], [0, 3],
-  [1, 0], [1, 1], [1, 2], [1, 3],
-  [2, 0], [2, 1], [2, 2], [2, 3],
-];
-const wideSize = { width: 890, height: 430, nodeWidth: 157, nodeHeight: 64, fontSize: 14 };
-const compactSize = { width: 410, height: 451, nodeWidth: 122, nodeHeight: 60, fontSize: 13 };
+function visibleTasks(tasks, subtree) {
+  if (subtree) {
+    const ids = new Set([subtree]);
+    let generation = [subtree];
+    for (let depth = 0; depth < 2; depth++) {
+      generation = tasks.filter(task => generation.includes(task.parent)).map(task => task.id);
+      generation.forEach(id => ids.add(id));
+    }
+    return tasks.filter(task => ids.has(task.id));
+  }
 
-function graphLayout(tasks, viewportWidth) {
-  const compact = viewportWidth < 700;
-  const size = compact ? compactSize : wideSize;
-  const labels = compact ? ['策划与剧本', '素材生成', '视频与交付'] : columns;
+  const lookup = new Map(tasks.map(task => [task.id, task]));
+  const ids = new Set([rootId]);
+  for (const task of tasks.filter(item => item.state === 'running')) {
+    for (let current = task; current && !ids.has(current.id); current = lookup.get(current.parent)) {
+      ids.add(current.id);
+    }
+  }
+  return tasks.filter(task => ids.has(task.id));
+}
+
+function graphLayout(tasks, subtree) {
+  const visible = visibleTasks(tasks, subtree);
+  const nodes = [];
+  let leaf = 0;
+  function position(task, depth) {
+    const node = { ...task, x: 0, y: 50 + depth * 69 };
+    nodes.push(node);
+    const children = visible.filter(child => child.parent === task.id);
+    const centers = children.map(child => position(child, depth + 1));
+    node.x = centers.length ? (centers[0] + centers.at(-1)) / 2 : 50 + leaf++ * 69;
+    return node.x;
+  }
+  position(visible[0], 0);
   return {
-    ...size,
-    compact,
-    labels: labels.map((name, column) => ({ name, x: compact ? 8 + column * 135 : 16 + column * 175 })),
-    nodes: tasks.map((task, index) => {
-      if (!compact) return task;
-      const [column, row] = compactSlots[index];
-      return { ...task, x: 8 + column * 135, y: 55 + row * 101 };
-    }),
+    nodes,
+    width: 100 + (leaf - 1) * 69,
+    height: 50 + Math.max(...nodes.map(node => node.y)),
   };
 }
 
 function fitGraph(layout, width, height) {
-  const zoom = Math.min(1.2, Math.max(.22, Math.min((width - 18) / layout.width, (height - 43) / layout.height)));
-  return { zoom, x: (width - layout.width * zoom) / 2, y: (height - layout.height * zoom) / 2 - 10 };
+  const zoom = Math.min(1.55, Math.max(.2, Math.min((width - 24) / layout.width, (height - 48) / layout.height)));
+  return { zoom, x: (width - layout.width * zoom) / 2, y: (height - layout.height * zoom) / 2 - 5 };
 }
 
 function makeProject(id, name, mode = 'sample') {
-  const tasks = blueprint.map(([id, name, column, y, deps, sample]) => ({
-    id, name, x: 16 + column * 175, y, deps,
+  const tasks = blueprint.map(([id, name, parent, deps, sample]) => ({
+    id, name, parent, deps,
     state: mode === 'sample' ? sample : mode === 'complete' ? 'complete' : 'waiting',
   }));
   return { id, name, paused: mode === 'paused', tasks, assets: [] };
@@ -68,15 +101,22 @@ function projectState(project) {
 
 function ready(project) {
   if (project.paused) return [];
-  return project.tasks.filter(task => task.state === 'waiting' &&
+  return project.tasks.filter(task => task.state === 'waiting' && !project.tasks.some(child => child.parent === task.id) &&
     task.deps.every(dep => project.tasks.some(candidate => candidate.id === dep && candidate.state === 'complete')));
 }
 
 const taskOutputs = (project, taskId) => project.assets.filter(asset => asset.task === taskId);
 const libraryAssets = (project, filters) => project.assets.filter(asset =>
-  (filters.type === types[0] || asset.type === filters.type) &&
+  (filters.type === types[0] || asset.type === filters.type ||
+    (filters.type === '交付' && /^deliver/.test(asset.task || ''))) &&
   (!filters.episode || asset.episode === filters.episode) &&
-  (!filters.shot || asset.shot === filters.shot));
+  (!filters.shot || asset.shot === filters.shot) &&
+  (!filters.query || asset.name.toLocaleLowerCase().includes(filters.query.trim().toLocaleLowerCase())));
+function currentEpisode(project) {
+  const episodes = project.tasks.filter(task => /^ep\d+$/.test(task.id));
+  return (episodes.find(task => task.state !== 'complete') || episodes.at(-1))?.id.slice(2) || '';
+}
+
 const latestFirst = assets => assets.slice().reverse();
 function versionGroups(assets) {
   const groups = new Map();
@@ -88,13 +128,29 @@ function versionGroups(assets) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, graphLayout, fitGraph };
+  module.exports = { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph };
 }
 
 if (typeof document !== 'undefined') mount();
 
 function mount() {
   const element = id => document.getElementById(id);
+  const themeToggle = element('theme-toggle');
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    themeToggle.textContent = theme === 'dark' ? '☀ 明亮' : '☾ 深色';
+    themeToggle.setAttribute('aria-label', theme === 'dark' ? '切换明亮主题' : '切换深色主题');
+  }
+  try {
+    applyTheme(localStorage.getItem('studio-theme') === 'dark' ? 'dark' : 'light');
+  } catch {
+    applyTheme('light');
+  }
+  themeToggle.addEventListener('click', () => {
+    const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(theme);
+    try { localStorage.setItem('studio-theme', theme); } catch {}
+  });
   const text = (id, value) => { element(id).textContent = value; };
   const create = (tag, className, value) => {
     const item = document.createElement(tag);
@@ -117,38 +173,69 @@ function mount() {
   }
   sample.assets.push(
     asset('outline', 'outline', '分集大纲', '剧本', 'common', '', 1, true, '深夜，一部早已停机的手机突然响起。来电那头是一通尚未发生的求救。'),
-    asset('cast', 'lead', '林夏 · 角色设定', '角色与场景', 'common', '', 1, true),
-    asset('cast', 'room', '电话亭 · 场景设定', '角色与场景', 'common', '', 1, true),
+    asset('cast', 'lead', '林夏 · 角色设定', '角色、场景与道具', 'common', '', 1, true),
+    asset('cast', 'room', '电话亭 · 场景设定', '角色、场景与道具', 'common', '', 1, true),
+    asset('props', 'phone', '停机手机 · 道具设定', '角色、场景与道具', 'common', '', 1, true),
     asset('voice', 'lead-voice', '林夏 · 试音', '音频', 'common', '', 1, false),
     asset('script', 'script1', '第 1 集 · 失效号码', '剧本', '1', '', 1, true, '外景 · 雨夜。林夏经过电话亭，雨声里响起一段熟悉的铃声。'),
-    asset('script', 'script2', '第 2 集 · 空白录音', '剧本', '2', '', 1, true, '内景 · 清晨。林夏反复切换录音轨道，终于听见了一句低语。'),
+    asset('script2', 'script2', '第 2 集 · 空白录音', '剧本', '2', '', 1, true, '内景 · 清晨。林夏反复切换录音轨道，终于听见了一句低语。'),
     asset('board1', 's01', '雨夜电话亭', '分镜', '1', '01', 1, true),
     asset('board1', 's01', '雨夜电话亭', '分镜', '1', '01', 2, false),
     asset('board1', 's02', '接起电话', '分镜', '1', '02', 1, true),
     asset('board1', 's03', '玻璃倒影', '分镜', '1', '03', 1, false),
+    asset('video', 'scene1', '雨夜电话亭 · 镜头视频', '视频', '1', '01', 1, true),
+    asset('deliver', 'final1', '第 1 集 · 成片', '视频', '1', '', 1, true),
+    asset('deliver', 'captions1', '第 1 集 · 字幕', '交付', '1', '', 1, true, '00:00:02.400 → 00:00:04.800　你终于接电话了。'),
+    asset('deliver', 'timeline1', '第 1 集 · 可编辑时间轴', '交付', '1', '', 1, true, '镜头 01 → 镜头 02 → 镜头 03 · 对白、音效与字幕已对齐。'),
+    asset('board2', 's21', '清晨回放', '分镜', '2', '01', 1, true),
+    asset('board2', 's22', '录音波峰', '分镜', '2', '02', 1, true),
   );
   const second = makeProject(2, '雾都回信', 'paused');
-  second.tasks[0].state = 'complete';
-  second.tasks[1].state = 'complete';
+  for (const task of second.tasks.filter(task => ['plan', 'idea', 'outline'].includes(task.id))) task.state = 'complete';
   second.assets.push(asset('outline', 'outline', '雾都回信 · 分集大纲', '剧本', 'common', '', 1, true, '每当雾起，一封寄往过去的信就会出现在门前。'));
   const third = makeProject(3, '第七次日落', 'complete');
-  third.assets.push(asset('deliver', 'final', '第七次日落 · 成片', '视频', 'common', '', 1, true));
+  third.assets.push(asset('deliver2', 'final', '第七次日落 · 成片', '视频', '2', '', 1, true));
   const projects = [sample, second, third];
   const timers = new Map();
   let project = sample;
   let currentTask = null;
+  let subtree = null;
+  const graphHistory = [];
   let outputTask = null;
-  let filters = { type: types[0], episode: '', shot: '' };
+  let filters = { type: types[0], episode: currentEpisode(project), shot: '', query: '' };
   let savedScroll = 0;
   let view = { x: 0, y: 0, zoom: 1 };
   let drag;
   let autoFit = true;
-  let graph = graphLayout(project.tasks, 890);
+  let graph = graphLayout(project.tasks, subtree);
   let viewportSize;
   let focusIndex = {};
   const viewport = element('viewport');
   const list = element('asset-list');
   const detail = element('task-detail');
+  const assetPanel = document.querySelector('.assets');
+  const libraryDialog = element('library-dialog');
+  const expandAssets = element('expand-assets');
+  const assetSlot = document.createComment('asset panel position');
+  assetPanel.before(assetSlot);
+  expandAssets.addEventListener('click', () => {
+    if (libraryDialog.open) {
+      libraryDialog.close();
+      return;
+    }
+    const scroll = list.scrollTop;
+    libraryDialog.append(assetPanel);
+    expandAssets.textContent = '收起';
+    libraryDialog.showModal();
+    list.scrollTop = scroll;
+  });
+  libraryDialog.addEventListener('close', () => {
+    const scroll = list.scrollTop;
+    assetSlot.after(assetPanel);
+    expandAssets.textContent = '展开';
+    list.scrollTop = scroll;
+    expandAssets.focus({ preventScroll: true });
+  });
 
   function renderProjects() {
     const items = projects.map(item => {
@@ -185,8 +272,10 @@ function mount() {
     if (project !== item) {
       project = item;
       currentTask = null;
+      subtree = null;
+      graphHistory.length = 0;
       outputTask = null;
-      filters = { type: types[0], episode: '', shot: '' };
+      filters = { type: types[0], episode: currentEpisode(project), shot: '', query: '' };
       savedScroll = 0;
       focusIndex = {};
     }
@@ -198,70 +287,75 @@ function mount() {
   }
 
   function renderGraph() {
-    graph = graphLayout(project.tasks, viewport.clientWidth);
-    element('world').classList.toggle('compact', graph.compact);
-    text('task-count', project.tasks.length + ' 个节点');
-    element('find-running').disabled = !project.tasks.some(task => task.state === 'running');
-    element('find-timeout').disabled = !project.tasks.some(task => task.state === 'timeout');
+    graph = graphLayout(project.tasks, subtree);
     const active = project.tasks.find(task => task.id === currentTask);
-    const related = new Set(active ? [
-      ...active.deps, ...project.tasks.filter(task => task.deps.includes(active.id)).map(task => task.id),
-    ] : []);
-    const headings = graph.labels.map(({ name, x }) => {
-      const label = create('span', 'graph-column', name);
-      label.style.left = x + 'px';
-      label.style.top = graph.compact ? '20px' : '39px';
-      return label;
-    });
+    text('graph-title', subtree ? project.tasks.find(task => task.id === subtree).name : '运行路径');
+    text('task-count', graph.nodes.length + ' 个节点');
+    element('graph-back').hidden = !graphHistory.length;
+    element('find-running').disabled = !graph.nodes.some(task => task.state === 'running');
+    element('find-timeout').disabled = !project.tasks.some(task => task.state === 'timeout');
     const nodes = graph.nodes.map(task => {
-      const node = button('', 'node ' + task.state, () => setTask(task.id, true));
+      const node = button('', 'node ' + task.state, event => {
+        if (event.detail === 1 || event.detail === 0) showTask(task.id);
+      });
       node.dataset.task = task.id;
+      node.setAttribute('aria-label', task.name + '，' + states[task.state]);
       node.setAttribute('aria-pressed', String(task.id === currentTask));
-      if (active && task.id !== active.id) node.classList.add(related.has(task.id) ? 'related' : 'dim');
       node.style.left = task.x + 'px';
       node.style.top = task.y + 'px';
-      node.append(create('span', 'node-name', task.name), create('span', 'node-state', states[task.state]));
+      node.append(create('span', 'node-tip', task.name));
+      node.addEventListener('dblclick', () => enterTree(task.id));
+      node.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        enterTree(task.id);
+      });
       return node;
     });
-    element('nodes').replaceChildren(...headings, ...nodes);
-    const paths = graph.nodes.flatMap(task => task.deps.map(id => {
-      const dep = graph.nodes.find(candidate => candidate.id === id);
+    element('nodes').replaceChildren(...nodes);
+    const paths = graph.nodes.flatMap(task => {
+      const parent = graph.nodes.find(candidate => candidate.id === task.parent);
+      if (!parent) return [];
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const mid = graph.nodeHeight / 2;
-      let coordinates;
-      if (task.x === dep.x) {
-        const down = task.y > dep.y;
-        const start = dep.y + (down ? graph.nodeHeight : 0);
-        const end = task.y + (down ? 0 : graph.nodeHeight);
-        const x = task.x + graph.nodeWidth / 2;
-        coordinates = 'M ' + x + ' ' + start + ' L ' + x + ' ' + end;
-        if (Math.abs(task.y - dep.y) > 110) {
-          const lane = task.x + graph.nodeWidth + 5;
-          coordinates = 'M ' + (task.x + graph.nodeWidth) + ' ' + (dep.y + mid) +
-            ' H ' + lane + ' V ' + (task.y + mid) + ' H ' + (task.x + graph.nodeWidth);
-        }
-      } else {
-        const x1 = dep.x + graph.nodeWidth, x2 = task.x, y1 = dep.y + mid, y2 = task.y + mid;
-        const gap = Math.min(66, (x2 - x1) / 2);
-        coordinates = 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + gap) + ' ' + y1 +
-          ', ' + (x2 - gap) + ' ' + y2 + ', ' + x2 + ' ' + y2;
-      }
+      const mid = (task.y + parent.y) / 2;
+      const coordinates = 'M ' + parent.x + ' ' + parent.y + ' C ' + parent.x + ' ' + mid +
+        ', ' + task.x + ' ' + mid + ', ' + task.x + ' ' + task.y;
       path.setAttribute('d', coordinates);
-      const direct = active && (active.id === id || active.id === task.id);
-      path.setAttribute('class', 'edge' + (direct ? ' related' : active ? ' dim' : ''));
-      path.setAttribute('marker-end', direct ? 'url(#arrow-active)' : 'url(#arrow)');
-      return path;
-    }));
+      path.setAttribute('class', 'edge');
+      return [path];
+    });
     element('connections').replaceChildren(...paths);
     renderDetail(active);
   }
+
+  function enterTree(id) {
+    if (subtree === id) return;
+    graphHistory.push({ subtree, view: { ...view }, autoFit });
+    subtree = id;
+    currentTask = null;
+    renderGraph();
+    fit();
+    focusNode(id);
+  }
+
+  element('graph-back').addEventListener('click', () => {
+    const previous = graphHistory.pop();
+    const previousRoot = subtree;
+    subtree = previous.subtree;
+    view = previous.view;
+    autoFit = previous.autoFit;
+    currentTask = null;
+    renderGraph();
+    updateView();
+    focusNode(previousRoot);
+  });
 
   function renderDetail(task) {
     detail.hidden = !task;
     if (!task) return;
     const heading = create('div', 'detail-heading');
     const close = button('×', '', () => {
-      setTask(null);
+      showTask(null);
       focusNode(task.id);
     });
     close.setAttribute('aria-label', '关闭任务详情');
@@ -286,9 +380,12 @@ function mount() {
     element('nodes').querySelector('[data-task="' + id + '"]')?.focus({ preventScroll: true });
   }
 
-  function setTask(id, focus) {
+  function showTask(id, focus) {
     currentTask = id;
-    renderGraph();
+    element('nodes').querySelectorAll('.node').forEach(node => {
+      node.setAttribute('aria-pressed', String(node.dataset.task === id));
+    });
+    renderDetail(project.tasks.find(task => task.id === id));
     if (focus) focusNode(id);
   }
 
@@ -312,24 +409,28 @@ function mount() {
   }
 
   function locate(status) {
-    const matching = graph.nodes.filter(task => task.state === status);
-    if (!matching.length) return;
+    let matching = graph.nodes.filter(task => task.state === status);
+    if (!matching.length) {
+      const target = project.tasks.find(task => task.state === status);
+      if (!target) return;
+      enterTree(target.parent);
+      matching = graph.nodes.filter(task => task.state === status);
+    }
     focusIndex[status] = ((focusIndex[status] ?? -1) + 1) % matching.length;
     const task = matching[focusIndex[status]];
     autoFit = false;
     view.zoom = Math.max(view.zoom, .87);
-    view.x = viewport.clientWidth / 2 - (task.x + graph.nodeWidth / 2) * view.zoom;
-    view.y = viewport.clientHeight / 2 - (task.y + graph.nodeHeight / 2) * view.zoom;
-    setTask(task.id, true);
+    view.x = viewport.clientWidth / 2 - task.x * view.zoom;
+    view.y = viewport.clientHeight / 2 - task.y * view.zoom;
+    showTask(task.id, true);
     updateView();
   }
 
   function renderAssets(scroll = list.scrollTop) {
     const controls = element('asset-controls');
-    let visible;
     let items;
     if (outputTask) {
-      visible = latestFirst(taskOutputs(project, outputTask));
+      const visible = latestFirst(taskOutputs(project, outputTask));
       const header = create('div', 'output-heading');
       const back = button('← 返回素材库', '', () => {
         outputTask = null;
@@ -341,7 +442,6 @@ function mount() {
       items = visible.map(item => assetCard([item]));
       text('asset-count', visible.length + ' 个产出');
     } else {
-      visible = libraryAssets(project, filters);
       const tabList = create('div', 'asset-types');
       for (const type of types) {
         const tab = button(type, '', () => {
@@ -353,17 +453,37 @@ function mount() {
         tabList.append(tab);
       }
       const selectors = create('div', 'filters');
-      const episodeChoices = [...new Set(project.assets.map(item => item.episode).filter(value => value !== 'common'))].sort();
+      const episodeChoices = [...new Set(project.tasks.filter(task => /^ep\d+$/.test(task.id)).map(task => task.id.slice(2)))].sort();
+      const current = currentEpisode(project);
+      const search = create('input', 'asset-search');
+      search.type = 'search';
+      search.placeholder = '搜索素材名称';
+      search.value = filters.query;
+      search.setAttribute('aria-label', '搜索素材名称');
+      search.addEventListener('input', () => {
+        filters.query = search.value;
+        renderLibraryItems(0);
+      });
       const shotChoices = [...new Set(project.assets.filter(item => !filters.episode || item.episode === filters.episode)
         .map(item => item.shot).filter(Boolean))].sort();
       selectors.append(
-        selectFilter('集数', 'episode', [['', '所有集数'], ['common', '全剧共用'], ...episodeChoices.map(value => [value, episodeName(value)])]),
+        selectFilter('集数', 'episode', [['', '全项目'], ['common', '全剧共用'], ...episodeChoices.map(value => [value, value === current ? '当前集 · ' + episodeName(value) : episodeName(value)])]),
         selectFilter('镜头', 'shot', [['', '所有镜头'], ...shotChoices.map(value => [value, '镜头 ' + value])]),
       );
-      controls.replaceChildren(tabList, selectors);
-      items = versionGroups(visible).map(assetCard);
-      text('asset-count', items.length + ' 项素材');
+      controls.replaceChildren(search, tabList, selectors);
+      renderLibraryItems(scroll);
+      return;
     }
+    setAssetItems(items, scroll);
+  }
+
+  function renderLibraryItems(scroll) {
+    const items = versionGroups(libraryAssets(project, filters)).map(assetCard);
+    text('asset-count', items.length + ' 项素材');
+    setAssetItems(items, scroll);
+  }
+
+  function setAssetItems(items, scroll) {
     list.replaceChildren(...(items.length ? items : [create('p', 'empty', project.assets.length ? '当前筛选下没有素材' : '素材生成后会显示在这里')]));
     list.scrollTop = scroll;
   }
@@ -418,6 +538,12 @@ function mount() {
   function cover(item) {
     const coverType = item.type === '剧本' ? ' text' : item.type === '音频' ? ' audio' : '';
     const frame = create('span', 'asset-cover' + coverType);
+    if (item.group === 's21' || item.group === 's22') {
+      const frameArt = create('span', 'frame-art ' + (item.group === 's21' ? 'morning-scene' : 'wave-scene'));
+      frameArt.setAttribute('aria-hidden', 'true');
+      frameArt.append(create('i', 'art-window'), create('i', 'art-subject'), create('i', 'art-prop'));
+      frame.append(frameArt);
+    }
     const tone = [...item.group].reduce((sum, letter) => sum + letter.charCodeAt(0), item.version) % covers.length;
     frame.style.setProperty('--cover', 'radial-gradient(ellipse at 25% 10%, ' + covers[tone] + ', #232337 87%)');
     frame.append(create('span', '', item.type));
@@ -448,12 +574,17 @@ function mount() {
           asset(task.id, 's22', '录音波峰', '分镜', '2', '02', 1, false),
         );
       }
-      if (task.id === 'video' || task.id === 'video2') {
+      if (['video', 'video2', 'silent2'].includes(task.id)) {
         const episode = task.id === 'video' ? '1' : '2';
-        item.assets.push(asset(task.id, task.id, episodeName(episode) + ' · 镜头片段', '视频', episode, '01', 1, false));
+        item.assets.push(asset(task.id, task.id, episodeName(episode) + ' · 镜头片段', '视频', episode, task.id === 'silent2' ? '02' : '01', 1, false));
       }
+      if (task.id === 'voice2') item.assets.push(asset(task.id, task.id, '镜头 01 · 对白配音', '音频', '2', '01', 1, true));
       if (task.id === 'outline' && item.idea) {
         item.assets.push(asset(task.id, 'outline', '分集大纲', '剧本', 'common', '', 1, false, item.idea));
+      }
+      for (const parent of item.tasks.slice().reverse()) {
+        const children = item.tasks.filter(child => child.parent === parent.id);
+        if (children.length && children.every(child => child.state === 'complete')) parent.state = 'complete';
       }
       dispatch(item);
       refresh(item);
@@ -474,7 +605,10 @@ function mount() {
     if (item !== project) return;
     renderHeader();
     renderGraph();
-    renderAssets();
+    if (autoFit) fit();
+    const activeSearch = previousFocus.classList.contains('asset-search');
+    if (activeSearch && !outputTask) renderLibraryItems(list.scrollTop);
+    else renderAssets();
     if (previousFocus.dataset.task) focusNode(previousFocus.dataset.task);
   }
 
@@ -543,9 +677,7 @@ function mount() {
     const previous = viewportSize;
     if (previous && previous.width === next.width && previous.height === next.height) return;
     viewportSize = next;
-    const switchLayout = graph.compact !== (next.width < 700);
-    if (switchLayout) renderGraph();
-    if (autoFit || switchLayout) {
+    if (autoFit) {
       fit();
     } else if (previous) {
       view.x += (next.width - previous.width) / 2;
