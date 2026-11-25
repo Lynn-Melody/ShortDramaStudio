@@ -2,31 +2,32 @@
 
 ## 技术决策
 
-首版采用 **TypeScript 模块化单体、PostgreSQL 任务调度、独立 Worker、私有对象存储**。管理平台持有生产状态，n8n 执行单个生产任务，专业 Agent 在自建平台上运行。API、Worker 和 Agent 运行服务共用仓库与接口契约，分别启动。生产顺序遵循 [项目约定](../AGENTS.md)，工作台交互遵循 [产品设计](product-design.md)。
+首版采用 **Django 5.2 LTS、Django REST Framework、PostgreSQL 任务调度和 React 工作台**。Django API 和独立 Worker 共用生产领域服务，n8n 执行单个生产任务，专业 Agent 在自建服务中运行。媒体文件存入私有对象存储。生产顺序遵循 [项目约定](../AGENTS.md)，工作台交互遵循 [产品设计](product-design.md)。
 
 | 层级 | 选型 | 用途 |
 | --- | --- | --- |
-| 工具链 | Node.js 24 LTS、TypeScript、pnpm workspace | 前端、API、Worker 和 Agent 复用类型与校验规则。应用和依赖版本随锁文件固定 |
+| 工具链 | 后端使用 Python 3.14、uv。前端使用 Node.js 24 LTS、TypeScript、pnpm | Python 和前端依赖通过各自的锁文件固定 |
 | 前端 | React 19、Vite、TanStack Query、React Flow | 左中右工作台、数据缓存、受控任务树视口 |
-| API 与契约 | Fastify 5、Zod 4、REST JSON | 公共接口与内部接口共用结构校验。骨架实现时由共享契约生成 OpenAPI 3.1 |
-| 持久化 | PostgreSQL 18、`pg`、`node-pg-migrate` | 任务事务、行锁、派发记录、素材元数据和版本关联。状态关键路径用显式 SQL |
-| 媒体存储 | S3 兼容对象存储、AWS SDK v3 | 私有存储图片、音视频、字幕、剧本和时间轴，按需签发临时上传与读取地址 |
-| 生产执行 | 自托管 n8n、平台自建 Agent 运行服务 | 九条生产工作流接入九个专业角色。第三方模型和渲染器通过工作流或 Agent 工具适配 |
-| 测试与部署 | Vitest、Playwright、Docker Compose | 单元测试、真实 PostgreSQL 集成测试、工作台端到端测试与首版单机部署 |
+| API 与契约 | Django 5.2 LTS、Django REST Framework、drf-spectacular | DRF Serializer 校验请求和结果，生成 OpenAPI 3.1。前端使用 `openapi-typescript` 生成类型 |
+| 持久化 | PostgreSQL 18、psycopg 3、Django ORM 与迁移 | 任务事务、行锁、派发记录、素材元数据和版本关联 |
+| 内部运维 | Django Admin | 查阅项目、任务、执行记录和素材版本。允许的重试操作调用生产领域服务 |
+| 媒体存储 | S3 兼容对象存储、boto3 | 私有存储图片、音视频、字幕、剧本和时间轴，按需签发临时上传与读取地址 |
+| 生产执行 | 独立 Django Worker、自托管 n8n、自建 Python Agent 服务 | 九条生产工作流接入九个专业角色。通过 HTTP 连接平台、工作流和 Agent |
+| 测试与部署 | pytest、pytest-django、Vitest、Playwright、Docker Compose | 单元测试、真实 PostgreSQL 集成测试、工作台端到端测试与首版单机部署 |
 
-项目可能累计数千节点，运行、暂停、回调和素材版本登记需要跨请求保持一致。PostgreSQL 承担任务元数据、事务与可靠派发记录，Worker 通过行锁领取任务。媒体文件走对象存储，任务表只持久化引用与可查询元数据。 [Node.js 发布周期](https://nodejs.org/en/about/previous-releases) · [Fastify 支持周期](https://fastify.dev/docs/latest/Reference/LTS/) · [Vite 指南](https://vite.dev/guide/) · [PostgreSQL 锁定子句](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE) · [S3 预签名 URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+项目可能累计数千节点。Django 提供项目和任务等关系数据的模型、迁移与内部运维入口。运行、暂停、回调和素材版本登记由 PostgreSQL 事务保证一致。Worker 通过行锁领取任务，媒体文件走对象存储，任务表持久化引用与可查询元数据。安装 Django 5.2 系列的受支持补丁版本，Python 3.14 兼容性从 5.2.8 起提供。 [Django 支持周期](https://www.djangoproject.com/download/#supported-versions) · [Python 3.14 兼容性](https://docs.djangoproject.com/en/5.2/releases/5.2.8/) · [Django Admin](https://docs.djangoproject.com/en/5.2/ref/contrib/admin/) · [PostgreSQL 锁定子句](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE) · [S3 预签名 URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
 
 ## 模块边界与所有权
 
 | 目录 | 职责和对外接口 |
 | --- | --- |
 | `apps/web` | 项目列表、任务树、任务详情、素材库和主题，通过公开 REST 接口读取或操作项目 |
-| `apps/api` | Fastify 路由、身份校验、项目控制、查询、执行接收与结果回调、媒体签名 |
-| `apps/worker` | 扫描就绪任务和过期执行、派发 n8n Webhook、恢复未送达记录 |
-| `packages/domain` | 生产步骤、状态流转、完成规则、进度算法及数据库事务操作。API 和 Worker 调用同一实现 |
-| `packages/contracts` | 任务类型、请求响应、叶子任务输入输出及版本化 Zod schema |
-| `packages/db` | PostgreSQL 连接、迁移和查询实现 |
-| `apps/agents` | 九个 Agent 的版本化配置、上下文装配、工具权限、运行记录与产物交接 |
+| `apps/backend/studio` | Django 项目配置、身份校验、DRF 路由挂载、OpenAPI 生成和 Admin 入口 |
+| `apps/backend/production` | 项目、分集和任务模型及迁移，生产阶段、状态事务、进度算法、控制接口和执行回调。Django API 与 Worker 调用同一套服务 |
+| `apps/backend/production/management/commands` | 平台调度 Worker 入口 `manage.py run_scheduler`，扫描就绪和过期任务、派发 n8n Webhook、恢复未送达记录 |
+| `apps/backend/media` | 素材、版本和交付模型及迁移，素材库查询、产物登记和对象存储签名 |
+| `apps/backend/contracts` | 版本化 DRF Serializer，定义 HTTP 请求响应和叶子任务输入输出 |
+| `apps/agents` | 独立 Python 服务，通过内部 HTTP 接口运行九个专业角色，负责版本化配置、上下文、工具权限、运行记录和产物交接 |
 | `workflows/n8n` | 可导入的九条生产工作流、任务类型到工作流的映射和联调样例 |
 
 平台按 `task_id` 和 `execution_id` 跟踪工作。n8n 接受执行请求、调用 Agent 和媒体工具、回传产物。Agent 服务从带版本的设定、剧本和素材装配角色上下文。任务状态、重试、资产采用版本由平台事务更新。产品原型留在 `prototype/` 作为交互验收参照。
@@ -42,7 +43,7 @@
 
 ### 领取、派发和回调
 
-1. **领取。** Worker 按最早就绪顺序扫描启用派发的项目，用 `FOR UPDATE SKIP LOCKED` 领取项目行，取得锁后重查状态、依赖和并发余额。同项目的创建后推进、暂停、领取、回调、超时、重试均先锁项目行，再更新任务和执行。短事务中把叶子任务设为运行，固定本次输入版本，生成执行 ID，写入开始时间、截止时间及一条 `dispatch_outbox`。编排推进在同一套项目锁规则下完成。
+1. **领取。** Worker 按最早就绪顺序扫描启用派发的项目，在 `transaction.atomic()` 里用 `select_for_update(skip_locked=True, of=("self",))` 领取项目行，取得锁后重查状态、依赖和并发余额。同项目的创建后推进、暂停、领取、回调、超时、重试均先锁项目行，再更新任务和执行。短事务中把叶子任务设为运行，固定本次输入版本，生成执行 ID，写入开始时间、截止时间及一条 `dispatch_outbox`。编排推进在同一套项目锁规则下完成。 [Django 事务](https://docs.djangoproject.com/en/5.2/topics/db/transactions/) · [Django 行锁](https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update)
 2. **送达。** Worker 用可过期租约领取 outbox 记录，提交事务后调用对应 n8n Webhook。首个有业务逻辑的节点调用平台 `accept` 接口，原子接收该执行并登记已送达。重复请求返回 `already_accepted`，工作流据此结束。HTTP 超时或临时传输错误时，在截止时间内退避重发同一执行 ID。n8n 在接收检查后响应 Webhook，再继续生产。已接收的工作流可在 n8n 自己的执行记录中排查。 [n8n Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/) · [Respond to Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.respondtowebhook/)
 3. **完成。** 回调先校验产物结构和上传归属，网络校验在事务外完成。锁定项目后，用 `clock_timestamp()` 检查当前执行 ID、执行状态和截止时间。只有当前、已接收且未到期的执行能修改任务。成功时，同事务登记素材版本、标记完成、推进父任务、创建后继节点、更新项目进度。重复或迟到回调返回已处理或已过期，现有产物引用和进度保持一致。
 4. **恢复。** Worker 定期回收超时执行和过期 outbox 租约。执行失败或超时后，重试沿用任务 ID，领取时分配新执行 ID。支持幂等键的外部服务使用该执行 ID 或其派生步骤键。已接收但结果不明的付费调用，先按外部 job ID 核查再重试。网络送达按可重发设计，平台的产物登记与阶段推进按执行去重。
@@ -74,6 +75,8 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 ### 工作台接口
 
 公共 API 前缀为 `/api/v1`，列表使用稳定游标。应用以项目 ID 做查询范围校验。动作接口返回更新后的摘要，查询接口在同一次响应中返回一致的读取结果。
+
+API 与内部接口分别从后端 Serializer 生成 OpenAPI 3.1。前端从公共契约生成 TypeScript 类型，工作流和 Agent 以内部契约及对应的 `schemaVersion` 联调。CI 检查契约与生成类型同步。 [drf-spectacular 设置](https://drf-spectacular.readthedocs.io/en/latest/settings.html) · [openapi-typescript](https://openapi-ts.dev/introduction)
 
 | 方法与资源 | 契约 |
 | --- | --- |
@@ -117,7 +120,7 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 
 ## 部署与协作验收
 
-首版使用 Docker Compose，包含 Web、API、Worker、Agent 运行服务、自托管 n8n 和 PostgreSQL。开发环境使用同版本数据库及可替换的媒体适配器，联调配置独立的 S3 兼容测试桶。生产使用私有桶和独立凭据，浏览器经同域 HTTPS 网关访问工作台。首版单工作室共用项目，生产入口接入部署环境的统一身份认证。n8n 和平台各用单独的 PostgreSQL 数据库与账号。备份平台数据库、n8n 数据库和加密密钥，媒体保留对象备份并定期做恢复演练。 [n8n PostgreSQL 配置](https://docs.n8n.io/deploy/host-n8n/configure-n8n/choose-n8ns-database.md)
+首版使用 Docker Compose，包含 Web、Django API、独立调度 Worker、Agent 运行服务、自托管 n8n 和 PostgreSQL。API 与 Worker 使用同一后端镜像，发布时先执行数据库迁移，再启动两个进程。开发环境使用同版本数据库和可替换的媒体适配器，联调配置独立的 S3 兼容测试桶。生产使用私有桶和独立凭据，浏览器经同域 HTTPS 网关访问工作台。首版单工作室共用项目，生产入口接入部署环境的统一身份认证。Admin 面向授权运维人员，任务状态和采用版本通过领域服务更新。n8n 和平台各用单独的 PostgreSQL 数据库与账号。备份平台数据库、n8n 数据库和加密密钥，媒体保留对象备份并定期做恢复演练。 [Django 管理命令](https://docs.djangoproject.com/en/5.2/howto/custom-management-commands/) · [n8n PostgreSQL 配置](https://docs.n8n.io/deploy/host-n8n/configure-n8n/choose-n8ns-database.md)
 
 | 交付顺序 | 负责模块 | 验收 |
 | --- | --- | --- |
@@ -126,4 +129,4 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 | 3 | 工作台 | 并发运行路径去重、无运行时保留根节点、两层下钻返回复原视角、暂停收尾、素材交付与主题保留。用数十集、每集数十镜的固定数据验证按范围加载 |
 | 4 | Agent 服务 | 先接编剧、剧本审核和导演，再接视觉、声音与后期角色。用固定剧本和镜头评测剧情一致性、角色一致性和音画时序。换提示词或模型时跑回归 |
 
-调度集成测试使用两个数据库连接并发争用同一任务。故障用例覆盖 Worker 领取后重启、Webhook 响应丢失、执行重复接收、结果重复回调、超时与成功竞争、暂停与领取竞争、旧执行迟到和原版本继续可读。PR 检查包含类型检查、单元测试、真实数据库集成测试和相关工作台用例。每个模块先用共享契约和模拟结果独立验收，再接生产工具。
+调度集成测试使用真实 PostgreSQL 和 `pytest.mark.django_db(transaction=True)`，以两个独立数据库连接并发争用同一任务。故障用例覆盖 Worker 领取后重启、Webhook 响应丢失、执行重复接收、结果重复回调、超时与成功竞争、暂停与领取竞争、旧执行迟到和原版本继续可读。PR 检查包含 Django 检查、后端单元与数据库测试、OpenAPI 契约与前端类型同步检查、工作台相关测试。每个模块先用共享契约和模拟结果独立验收，再接生产工具。 [pytest-django 事务测试](https://pytest-django.readthedocs.io/en/latest/database.html#testing-transactions)
