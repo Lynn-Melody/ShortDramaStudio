@@ -2,7 +2,18 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
 const { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups } = require('./prototype.js');
+
+test('the standalone entry page loads its stylesheet and script from the same folder', () => {
+  const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
+  assert.match(html, /<link rel="stylesheet" href="prototype\.css">/);
+  assert.match(html, /<script src="prototype\.js" defer><\/script>/);
+  for (const asset of ['prototype.css', 'prototype.js']) {
+    assert.ok(readFileSync(join(__dirname, asset)).length > 0);
+  }
+});
 
 test('progress reflects completed nodes and project status', () => {
   const project = makeProject(1, '午夜来电');
