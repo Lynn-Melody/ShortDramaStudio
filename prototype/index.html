@@ -26,11 +26,11 @@
       <div id="project-summary" class="project-summary"></div>
     </div>
     <section class="graph pane" aria-label="任务图">
-      <div class="pane-heading graph-heading"><div><button id="graph-back" type="button" aria-label="返回上一层" hidden>←</button><h2 id="graph-title">运行路径</h2><span id="task-count"></span></div><div class="quick-actions"><button id="find-running" type="button">定位运行</button><button id="find-timeout" type="button">定位超时</button></div></div>
+      <div class="pane-heading graph-heading"><div><h2 id="graph-title">运行路径</h2><span id="task-count"></span></div><div class="quick-actions"><button id="find-running" type="button">定位运行</button><button id="find-timeout" type="button">定位超时</button></div></div>
       <div id="viewport" class="viewport" aria-label="任务画布">
         <span class="graph-hint">双击节点查看子任务</span><div id="world" class="world"><svg width="1" height="1" aria-hidden="true">
           <g id="connections"></g>
-        </svg><div id="nodes"></div></div>
+        </svg><div id="nodes"></div><button id="graph-back" class="tree-back" type="button" aria-label="返回上一层" hidden>返回</button></div>
         <div id="task-detail" class="task-detail" hidden></div>
         <div class="view-tools"><button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level"></span><button id="zoom-in" type="button" aria-label="放大">＋</button><button id="fit" type="button">全图</button></div>
       </div>

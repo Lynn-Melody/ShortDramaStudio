@@ -60,8 +60,9 @@ function graphLayout(tasks, subtree) {
   const visible = visibleTasks(tasks, subtree);
   const nodes = [];
   let leaf = 0;
+  const rootY = subtree ? 62 : 50;
   function position(task, depth) {
-    const node = { ...task, x: 0, y: 50 + depth * 69 };
+    const node = { ...task, x: 0, y: rootY + depth * 69 };
     nodes.push(node);
     const children = visible.filter(child => child.parent === task.id);
     const centers = children.map(child => position(child, depth + 1));
@@ -71,6 +72,7 @@ function graphLayout(tasks, subtree) {
   position(visible[0], 0);
   return {
     nodes,
+    back: subtree ? { x: nodes[0].x, y: rootY - 42 } : null,
     width: 100 + (leaf - 1) * 69,
     height: 50 + Math.max(...nodes.map(node => node.y)),
   };
@@ -79,6 +81,10 @@ function graphLayout(tasks, subtree) {
 function fitGraph(layout, width, height) {
   const zoom = Math.min(1.55, Math.max(.2, Math.min((width - 24) / layout.width, (height - 48) / layout.height)));
   return { zoom, x: (width - layout.width * zoom) / 2, y: (height - layout.height * zoom) / 2 - 5 };
+}
+
+function taskDetailSide(node, view, viewportHeight) {
+  return node && view.y + node.y * view.zoom > viewportHeight / 2 ? 'top' : 'bottom';
 }
 
 function makeProject(id, name, mode = 'sample') {
@@ -128,7 +134,7 @@ function versionGroups(assets) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph };
+  module.exports = { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph, taskDetailSide };
 }
 
 if (typeof document !== 'undefined') mount();
@@ -291,7 +297,12 @@ function mount() {
     const active = project.tasks.find(task => task.id === currentTask);
     text('graph-title', subtree ? project.tasks.find(task => task.id === subtree).name : '运行路径');
     text('task-count', graph.nodes.length + ' 个节点');
-    element('graph-back').hidden = !graphHistory.length;
+    const back = element('graph-back');
+    back.hidden = !graph.back;
+    if (graph.back) {
+      back.style.left = graph.back.x + 'px';
+      back.style.top = graph.back.y + 'px';
+    }
     element('find-running').disabled = !graph.nodes.some(task => task.state === 'running');
     element('find-timeout').disabled = !project.tasks.some(task => task.state === 'timeout');
     const nodes = graph.nodes.map(task => {
@@ -353,6 +364,8 @@ function mount() {
   function renderDetail(task) {
     detail.hidden = !task;
     if (!task) return;
+    const node = graph.nodes.find(candidate => candidate.id === task.id);
+    detail.dataset.side = taskDetailSide(node, view, viewport.clientHeight);
     const heading = create('div', 'detail-heading');
     const close = button('×', '', () => {
       showTask(null);

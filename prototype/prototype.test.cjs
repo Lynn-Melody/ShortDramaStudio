@@ -111,3 +111,32 @@ test('delivery filtering includes the episode video, captions, and editable time
   project.assets.push(...delivery, { task: 'video2', type: '视频', episode: '2' });
   assert.deepEqual(libraryAssets(project, { type: '交付', episode: '1' }), delivery);
 });
+
+test('the subtree return connector is above its root, inside the fitted canvas', () => {
+  const { tasks } = makeProject(1, '午夜来电');
+  assert.equal(graphLayout(tasks, null).back, null);
+
+  for (const id of ['root', 'ep2', 'voice2']) {
+    const width = 350;
+    const height = 390;
+    const graph = graphLayout(tasks, id);
+    const view = fitGraph(graph, width, height);
+    assert.equal(graph.back.x, graph.nodes[0].x);
+    assert.ok(graph.back.y + 32 < graph.nodes[0].y);
+    assert.ok(view.y + graph.back.y * view.zoom >= 0);
+    assert.ok(view.x + (graph.back.x - 14) * view.zoom >= 0);
+    assert.ok(view.x + (graph.back.x + 44) * view.zoom <= width);
+  }
+
+  const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
+  assert.match(html, /<div id="nodes"><\/div><button id="graph-back"[^>]+hidden>返回<\/button><\/div>/);
+});
+
+test('opening task details keeps the card opposite the clicked node', () => {
+  const { taskDetailSide } = require('./prototype.js');
+  const height = 480;
+  const view = { y: 30, zoom: 1.3 };
+  assert.equal(taskDetailSide({ y: 40 }, view, height), 'bottom');
+  assert.equal(taskDetailSide({ y: 260 }, view, height), 'top');
+  assert.equal(taskDetailSide({ y: 260 }, { ...view, y: -170 }, height), 'bottom');
+});
