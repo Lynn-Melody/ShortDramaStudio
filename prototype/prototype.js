@@ -111,6 +111,13 @@ function ready(project) {
     task.deps.every(dep => project.tasks.some(candidate => candidate.id === dep && candidate.state === 'complete')));
 }
 
+function retryTask(project, taskId) {
+  const task = project.tasks.find(candidate => candidate.id === taskId);
+  if (!task || task.state !== 'timeout') return false;
+  task.state = 'waiting';
+  return true;
+}
+
 const taskOutputs = (project, taskId) => project.assets.filter(asset => asset.task === taskId);
 const libraryAssets = (project, filters) => project.assets.filter(asset =>
   (filters.type === types[0] || asset.type === filters.type ||
@@ -134,7 +141,7 @@ function versionGroups(assets) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph, taskDetailSide };
+  module.exports = { makeProject, progress, projectState, ready, retryTask, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph, taskDetailSide };
 }
 
 if (typeof document !== 'undefined') mount();
@@ -380,6 +387,11 @@ function mount() {
       complete: '此任务已完成。',
     };
     detail.replaceChildren(heading, create('span', task.state, states[task.state]), create('p', '', messages[task.state]));
+    if (task.state === 'timeout') detail.append(button('重试', '', () => {
+      if (!retryTask(project, task.id)) return;
+      refresh(project);
+      showTask(task.id, true);
+    }));
     const count = taskOutputs(project, task.id).length;
     if (count) detail.append(button('查看 ' + count + ' 个产出', 'primary', () => {
       if (!outputTask) savedScroll = list.scrollTop;

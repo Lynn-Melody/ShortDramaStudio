@@ -52,3 +52,20 @@ test('technical design retains agreed generic lifecycle and equal-weight progres
   assert.ok(!text.includes('### 生产步骤与版本依赖'));
   assert.ok(text.includes('[生产流程](production-flow.md)'));
 });
+
+test('technical design closes the reviewed scheduling gaps', () => {
+  const text = readFileSync(resolve(__dirname, 'technical-design.md'), 'utf8');
+  for (const term of ['on_workflow_result(result)', '无副作用', 'max_attempts', 'retry_at', 'blocked_reason', '晚到收养', '/status', 'FFmpeg', 'MinIO', '首版不做', 'child_output']) {
+    assert.ok(text.includes(term), term);
+  }
+  assert.ok(!text.includes('失败或已超时的任务可重试'));
+  assert.ok(!text.includes('联调必须验证所选存储的条件写入'));
+  assert.ok(!text.includes('return self.finish()'));
+});
+
+test('product design exposes manual retry for blocked or timed-out tasks', () => {
+  const text = readFileSync(resolve(__dirname, 'product-design.md'), 'utf8');
+  assert.match(text, /失败被阻塞或已超时时显示「重试」/);
+  assert.match(text, /点击「重试」/);
+  assert.ok(text.includes('自动重试'));
+});
