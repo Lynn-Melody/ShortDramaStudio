@@ -41,8 +41,9 @@ services:
       retries: 30
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: ["server", "/data", "--console-address", ":9001"]
+    build:
+      context: .
+      dockerfile: infra/minio.Dockerfile
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-studio-local}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-studio-local-secret}

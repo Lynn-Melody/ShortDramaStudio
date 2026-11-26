@@ -22,7 +22,7 @@ docker compose ps
 | MinIO 控制台 | http://127.0.0.1:9001 |
 | PostgreSQL | 127.0.0.1:5432 |
 
-首次启动会创建平台和 n8n 各自的数据库与角色、运行 Django 迁移并初始化私有开发桶。用 `docker compose exec api python apps/backend/manage.py createsuperuser` 创建 Admin 账号。n8n 账号在编辑器中创建。Agent 和 FFmpeg 服务通过 Compose 内网访问。
+首次启动会构建固定版本的 MinIO 社区版，创建平台和 n8n 各自的数据库与角色、运行 Django 迁移并初始化私有开发桶。用 `docker compose exec api python apps/backend/manage.py createsuperuser` 创建 Admin 账号。n8n 账号在编辑器中创建。Agent 和 FFmpeg 服务通过 Compose 内网访问。
 
 当前工作台显示 API 连通状态。Worker、Agent、渲染服务分别提供启动检查或健康接口，供调度、角色和时间轴实现接入。[n8n 工作流目录](workflows/n8n/README.md)说明导入和内部服务地址。
 
