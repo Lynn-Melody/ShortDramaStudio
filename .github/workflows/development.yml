@@ -1,0 +1,39 @@
+name: Development checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Start development stack
+        run: docker compose up --build --wait --wait-timeout 180
+      - name: Check Django, PostgreSQL and OpenAPI
+        run: |
+          docker compose exec -T api python apps/backend/manage.py check
+          docker compose exec -T api pytest
+          docker compose run --rm storage-init
+      - name: Check docs, prototype and web
+        run: |
+          node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
+          corepack enable
+          pnpm --dir apps/web install --frozen-lockfile
+          pnpm --dir apps/web types:check
+          pnpm --dir apps/web test
+          pnpm --dir apps/web build
+          pnpm --dir apps/web exec playwright install --with-deps chromium
+          pnpm --dir apps/web test:e2e
+      - name: Show service logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop development stack
+        if: always()
+        run: docker compose down

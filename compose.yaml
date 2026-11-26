@@ -1,0 +1,178 @@
+name: short-drama-studio
+
+x-backend: &backend
+  image: short-drama-studio-python:dev
+  build:
+    context: .
+    dockerfile: infra/python.Dockerfile
+    target: development
+
+x-studio-env: &studio-env
+  STUDIO_DB_HOST: postgres
+  STUDIO_DB_PASSWORD: ${STUDIO_DB_PASSWORD:-studio-local}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-studio-development-only}
+
+x-s3-env: &s3-env
+  STUDIO_S3_ENDPOINT: http://minio:9000
+  STUDIO_MEDIA_BUCKET: ${STUDIO_MEDIA_BUCKET:-studio-dev}
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-studio-local}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-studio-local-secret}
+
+x-python-health: &python-health
+  interval: 5s
+  timeout: 4s
+  retries: 12
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres-local}
+      STUDIO_DB_PASSWORD: ${STUDIO_DB_PASSWORD:-studio-local}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:-n8n-local}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/init-databases.sh:/docker-entrypoint-initdb.d/10-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=\"$$STUDIO_DB_PASSWORD\" psql -h 127.0.0.1 -U studio -d studio -c 'SELECT 1' >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-studio-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-studio-local-secret}
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes:
+      - media-data:/data
+
+  storage-init:
+    <<: *backend
+    command: ["python", "infra/init-bucket.py"]
+    environment: *s3-env
+    depends_on:
+      minio:
+        condition: service_started
+
+  migrate:
+    <<: *backend
+    command: ["python", "apps/backend/manage.py", "migrate", "--noinput"]
+    environment: *studio-env
+    volumes:
+      - ./apps/backend:/workspace/apps/backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    command: ["python", "apps/backend/manage.py", "runserver", "0.0.0.0:8000"]
+    environment:
+      <<: [*studio-env, *s3-env]
+    volumes:
+      - ./apps/backend:/workspace/apps/backend
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      storage-init:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *python-health
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/internal/v1/health', timeout=3).close()"]
+
+  worker:
+    <<: *backend
+    command: ["python", "apps/backend/manage.py", "run_scheduler"]
+    environment:
+      <<: [*studio-env, *s3-env]
+    volumes:
+      - ./apps/backend:/workspace/apps/backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      storage-init:
+        condition: service_completed_successfully
+
+  agents:
+    <<: *backend
+    working_dir: /workspace/apps/agents
+    command: ["python", "-m", "django", "runserver", "0.0.0.0:8010", "--settings=studio.service_settings"]
+    environment:
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,agents
+    volumes:
+      - ./apps/agents:/workspace/apps/agents
+    healthcheck:
+      <<: *python-health
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8010/internal/v1/health', timeout=3).close()"]
+
+  render:
+    build:
+      context: .
+      dockerfile: infra/python.Dockerfile
+      target: render
+    working_dir: /workspace/apps/render
+    command: ["python", "-m", "django", "runserver", "0.0.0.0:8020", "--settings=studio.service_settings"]
+    environment:
+      <<: *s3-env
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,render
+    volumes:
+      - ./apps/render:/workspace/apps/render
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *python-health
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8020/internal/v1/health', timeout=3).close()"]
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.49.7
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:-n8n-local}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-local-n8n-development-key}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_SECURE_COOKIE: "false"
+    ports: ["127.0.0.1:5678:5678"]
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./workflows/n8n:/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 24
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5678/healthz/readiness').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/web.Dockerfile
+    environment:
+      STUDIO_API_URL: http://api:8000
+    ports: ["127.0.0.1:5173:5173"]
+    volumes:
+      - ./apps/web/src:/workspace/apps/web/src
+      - ./apps/web/index.html:/workspace/apps/web/index.html
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/api/v1/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+
+volumes:
+  postgres-data:
+  media-data:
+  n8n-data:

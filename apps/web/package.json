@@ -1,0 +1,32 @@
+{
+  "name": "short-drama-studio-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": "24.x" },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "types:generate": "openapi-typescript ../../contracts/public.yaml -o src/api.d.ts",
+    "types:check": "openapi-typescript ../../contracts/public.yaml -o src/api.d.ts --check"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5",
+    "@xyflow/react": "^12",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6",
+    "openapi-typescript": "^7",
+    "typescript": "~5.9.3",
+    "vite": "^8",
+    "vitest": "^4"
+  }
+}

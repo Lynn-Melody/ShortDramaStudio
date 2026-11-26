@@ -203,6 +203,8 @@ child_total > 0 时：progress = 所有已绑定子任务的 progress 之和 / c
 
 ## 部署与协作验收
 
+开发环境的启动、校验和契约生成命令见[仓库说明](../README.md)。本地 Compose 先初始化独立数据库与私有开发桶，再启动依赖它们的进程。初始服务提供健康检查，生产任务、Agent 角色和渲染接口按以下顺序接入。
+
 首版使用 Docker Compose，包含 Web、Django API、独立调度 Worker、Agent 运行服务、自托管 n8n、基于 FFmpeg 的渲染服务和 PostgreSQL；开发环境另含 MinIO 作为 S3 兼容存储。渲染服务通过内部 HTTP 接收可执行时间轴，从对象存储读取素材并回写成片和字幕。API 与 Worker 使用同一后端镜像，发布时先执行数据库迁移，再启动两个进程。开发环境使用同版本数据库和可替换的媒体适配器，联调配置独立的 S3 兼容测试桶。生产使用私有桶和独立凭据，浏览器经同域 HTTPS 网关访问工作台。首版单工作室共用项目，生产入口接入部署环境的统一身份认证。Admin 面向授权运维人员，任务状态和采用版本通过领域服务更新。n8n 和平台各用单独的 PostgreSQL 数据库与账号。备份平台数据库、n8n 数据库和加密密钥，媒体保留对象备份并定期做恢复演练。 [Django 管理命令](https://docs.djangoproject.com/en/5.2/howto/custom-management-commands/) · [n8n PostgreSQL 配置](https://docs.n8n.io/deploy/host-n8n/configure-n8n/choose-n8ns-database.md)
 
 | 交付顺序 | 负责模块 | 验收 |
