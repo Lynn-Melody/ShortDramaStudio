@@ -1,13 +1,13 @@
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
 from django.conf import settings
-from django.db import connection
+from django.db import DatabaseError
 from django.utils.module_loading import import_string
 
+from .locks import decision_lock
 from .models import DispatchKind
 from .service import Scheduler
 from .tasks import Failed, PlanError, TaskRegistry
@@ -38,22 +38,6 @@ class WorkflowRequest:
         return str(self.execution_id)
 
 
-@contextmanager
-def _decision_lock(execution_id):
-    """Exclude concurrent local decisions even when a lease outlives its owner."""
-    # PostgreSQL session lock permits handler execution outside the row-lock transaction.
-    key = int.from_bytes(execution_id.bytes[:8], signed=True)
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT pg_try_advisory_lock(%s::bigint)", [key])
-        acquired = cursor.fetchone()[0]
-    try:
-        yield acquired
-    finally:
-        if acquired:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT pg_advisory_unlock(%s::bigint)", [key])
-
-
 def configured_scheduler():
     task_classes = getattr(settings, "SCHEDULER_TASK_CLASSES", ())
     return Scheduler(TaskRegistry(*(import_string(path) for path in task_classes)))
@@ -69,17 +53,25 @@ class Worker:
 
     def tick(self):
         expired = self.scheduler.reap_one()
-        claimed = self.scheduler.claim_next()
         kinds = [DispatchKind.LOCAL]
         if self.dispatch_workflow is not None:
             kinds.append(DispatchKind.WORKFLOW)
         dispatch = self.scheduler.lease_dispatch(kinds, duration=self.lease_duration)
+        claimed = None
+        if dispatch is None:
+            claimed = self.scheduler.claim_next()
+            if claimed is not None:
+                dispatch = self.scheduler.lease_dispatch([DispatchKind.LOCAL], duration=self.lease_duration)
         if dispatch is None:
             return expired is not None or claimed is not None
-        if dispatch.kind == DispatchKind.LOCAL:
-            self._run_local(dispatch)
-        else:
-            self._send_workflow(dispatch)
+        try:
+            if dispatch.kind == DispatchKind.LOCAL:
+                self._run_local(dispatch)
+            else:
+                self._send_workflow(dispatch)
+        except Exception:
+            # Leave the lease to expire if the dispatcher could not persist its decision.
+            logger.exception("Could not finish dispatch", extra=self._log_context(dispatch))
         return True
 
     @staticmethod
@@ -92,13 +84,17 @@ class Worker:
 
     def _run_local(self, dispatch):
         execution = dispatch.execution
-        with _decision_lock(execution.id) as acquired:
+        with decision_lock(execution.id) as acquired:
             if not acquired:
                 self.scheduler.defer_local(dispatch)
                 return
-            instance = self.scheduler.task_instance(execution)
+            if not self.scheduler.local_lease_is_current(dispatch):
+                return
             try:
+                instance = self.scheduler.task_instance(execution)
                 outcome = instance.on_processing()
+            except DatabaseError:
+                raise
             except Exception:
                 logger.exception("Task handler failed", extra=self._log_context(dispatch))
                 outcome = Failed("handler_failed", "Task handler raised an exception")

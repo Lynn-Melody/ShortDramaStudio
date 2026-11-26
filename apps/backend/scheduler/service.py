@@ -7,9 +7,10 @@ from decimal import Decimal, localcontext
 from uuid import UUID, uuid4
 
 from django.db import connection, transaction
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, F, OuterRef, Q, Subquery
 from django.db.models.functions import Greatest, Now
 
+from .locks import try_local_lease_lock
 from .models import ChildSlot, Dependency, Dispatch, DispatchKind, Execution, ExecutionState, Schedule, Task, TaskState, TaskWait
 from .tasks import BaseTask, Child, Completed, Failed, InvokeWorkflow, PlanError, TaskRef, WaitForChildren
 
@@ -17,6 +18,7 @@ from .tasks import BaseTask, Child, Completed, Failed, InvokeWorkflow, PlanError
 logger = logging.getLogger(__name__)
 LIVE = (ExecutionState.QUEUED, ExecutionState.ACCEPTED)
 PROVIDER_CHECK = "provider_jobs_unverified"
+INVALID_WORKFLOW_RESULT = "invalid_workflow_result"
 
 
 class StateConflict(ValueError):
@@ -46,6 +48,15 @@ def _json_object(value):
 
 def _valid_key(value, limit=100):
     return isinstance(value, str) and 0 < len(value) <= limit
+
+
+def _definition_filter(task_class, prefix=""):
+    return Q(**{f"{prefix}task_type": task_class.task_type, f"{prefix}definition_version": task_class.definition_version})
+
+
+def _validate_failure(outcome):
+    if not _valid_key(outcome.error_code) or not isinstance(outcome.message, str):
+        raise PlanError("Invalid failure result")
 
 
 def _task_ref(task):
@@ -150,6 +161,12 @@ class Scheduler:
         if self.registry.resolve(task_class.task_type, task_class.definition_version) is not task_class:
             raise PlanError("Task class does not match the registered definition")
 
+    def _registered_tasks(self, prefix):
+        eligible = Q(pk__in=[])
+        for task_class in self.registry:
+            eligible |= _definition_filter(task_class, prefix)
+        return eligible
+
     @transaction.atomic
     def set_enabled(self, schedule_id, enabled):
         schedule = Schedule.objects.select_for_update().get(pk=schedule_id)
@@ -169,7 +186,7 @@ class Scheduler:
         )
         eligible_type = Q(pk__in=[])
         for task_class in self.registry:
-            kind = Q(task_type=task_class.task_type, definition_version=task_class.definition_version)
+            kind = _definition_filter(task_class)
             limit = task_class.max_running_per_project
             if limit is not None:
                 kind &= Q(running_peers__isnull=True) | Q(running_peers__lt=limit)
@@ -228,7 +245,10 @@ class Scheduler:
         if snapshot["parent"] is not None:
             parent = snapshot["parent"]
             snapshot["parent"] = TaskRef(**{**parent, "id": UUID(parent["id"])})
-        instance = task_class(**snapshot)
+        try:
+            instance = task_class(**snapshot)
+        except Exception as exc:
+            raise PlanError(f"Could not restore {execution.task.task_type} from its execution snapshot") from exc
         instance.child_total = execution.task.child_total
         instance.child_keys = tuple(execution.task.slots.order_by("id").values_list("key", flat=True))
         return instance
@@ -315,15 +335,17 @@ class Scheduler:
                    "duration_seconds": (now - execution.started_at).total_seconds()}
         transaction.on_commit(lambda: logger.info("Execution ended", extra=context))
 
-    def _complete(self, execution, outcome, now, record_outputs=None):
-        task = execution.task
-        if task.slots.filter(Q(child__isnull=True) | ~Q(child__state=TaskState.COMPLETED)).exists():
+    @staticmethod
+    def _validate_completion(task, outcome):
+        slots = task.slots.aggregate(total=Count("pk"), done=Count("pk", filter=Q(child__state=TaskState.COMPLETED)))
+        if slots["total"] != task.child_total or slots["done"] != task.child_total:
             raise PlanError("All child slots must be completed before the parent")
         if not isinstance(outcome.reason, str) or len(outcome.reason) > 200:
             raise PlanError("Invalid completion reason")
-        output = _json_object(outcome.output)
-        if record_outputs is not None:
-            output = _json_object(record_outputs(execution, output))
+        return _json_object(outcome.output)
+
+    def _complete(self, execution, outcome, now, output):
+        task = execution.task
         self._end(execution, ExecutionState.SUCCEEDED, {"outcome": "completed", "output": output}, now)
         task.state, task.output, task.progress = TaskState.COMPLETED, output, Decimal(1)
         task.retry_at, task.blocked_reason, task.completion_reason = None, "", outcome.reason
@@ -345,8 +367,7 @@ class Scheduler:
         task.save(update_fields=["state", "blocked_reason", "retry_at", "waiting_since"])
 
     def _fail(self, execution, outcome, now, *, retryable=None):
-        if not _valid_key(outcome.error_code) or not isinstance(outcome.message, str):
-            raise PlanError("Invalid failure result")
+        _validate_failure(outcome)
         task = execution.task
         policy = self.registry.resolve(task.task_type, task.definition_version).retry_policy
         if retryable is None:
@@ -375,7 +396,10 @@ class Scheduler:
 
     @transaction.atomic
     def reap_one(self):
-        due = Execution.objects.filter(state__in=LIVE, deadline_at__lte=Now()).order_by("deadline_at", "pk")
+        due = Execution.objects.filter(
+            self._registered_tasks("task__"), state__in=LIVE, deadline_at__lte=Now(),
+            task__current_execution_id=F("pk"),
+        ).order_by("deadline_at", "pk")
         next_due = due.filter(task__schedule_id=OuterRef("pk")).values("deadline_at")[:1]
         schedule = (
             Schedule.objects.annotate(next_due=Subquery(next_due)).filter(next_due__isnull=False)
@@ -393,8 +417,11 @@ class Scheduler:
     @transaction.atomic
     def lease_dispatch(self, kinds, *, duration):
         claimable = (
-            Dispatch.objects.filter(kind__in=kinds, delivered_at__isnull=True, available_at__lte=Now(),
-                                    execution__state__in=LIVE, execution__deadline_at__gt=Now())
+            Dispatch.objects.filter(
+                self._registered_tasks("execution__task__"), kind__in=kinds, delivered_at__isnull=True,
+                available_at__lte=Now(), execution__state__in=LIVE, execution__deadline_at__gt=Now(),
+                execution__task__current_execution_id=F("execution_id"),
+            )
             .filter(Q(lease_until__isnull=True) | Q(lease_until__lte=Now()))
             .order_by("available_at", "pk")
         )
@@ -412,6 +439,10 @@ class Scheduler:
         if dispatch.execution.deadline_at <= now:
             self._expire(dispatch.execution, now)
             return None
+        if dispatch.kind == DispatchKind.LOCAL and not try_local_lease_lock(dispatch.execution_id):
+            dispatch.available_at = now + timedelta(seconds=1)
+            dispatch.save(update_fields=["available_at"])
+            return None
         dispatch.lease_id, dispatch.lease_until = uuid4(), min(now + duration, dispatch.execution.deadline_at)
         dispatch.save(update_fields=["lease_id", "lease_until"])
         if dispatch.kind == DispatchKind.LOCAL and dispatch.execution.state == ExecutionState.QUEUED:
@@ -427,6 +458,13 @@ class Scheduler:
     @staticmethod
     def _leased(dispatch, lease_id):
         return lease_id is not None and dispatch.lease_id == lease_id and dispatch.delivered_at is None
+
+    def local_lease_is_current(self, dispatch):
+        return Dispatch.objects.filter(
+            pk=dispatch.pk, lease_id=dispatch.lease_id, delivered_at__isnull=True,
+            execution__state=ExecutionState.ACCEPTED, execution__deadline_at__gt=Now(),
+            execution__task__current_execution_id=F("execution_id"),
+        ).exists()
 
     def submit_local(self, execution_id, lease_id, outcome):
         """Apply a decision from the local dispatcher. Child initialization runs before locking."""
@@ -455,7 +493,7 @@ class Scheduler:
                 task.save(update_fields=["state", "waiting_since", "attempt_count", "checkpoint"])
                 self._end(execution, ExecutionState.SUCCEEDED, {"outcome": "wait_for_children"}, now)
             elif isinstance(outcome, Completed):
-                self._complete(execution, outcome, now)
+                self._complete(execution, outcome, now, self._validate_completion(task, outcome))
             elif isinstance(outcome, Failed):
                 self._fail(execution, outcome, now)
             elif isinstance(outcome, InvokeWorkflow):
@@ -552,9 +590,7 @@ class Scheduler:
         status = self._workflow_result_status(execution, outcome)
         if status is not None:
             return status
-        mapped = self.task_instance(execution).on_workflow_result(outcome)
-        if not isinstance(mapped, (Completed, Failed)):
-            raise PlanError("Workflow hooks must return completion or failure")
+        mapped = self._map_workflow_result(execution, outcome)
         with transaction.atomic():
             execution = self._locked_execution(execution_id)
             status = self._workflow_result_status(execution, mapped)
@@ -565,11 +601,41 @@ class Scheduler:
                 self._expire(execution, now)
             if execution.state == ExecutionState.EXPIRED and not isinstance(mapped, Completed):
                 return "expired"
+            try:
+                if isinstance(mapped, Completed):
+                    output = self._validate_completion(execution.task, mapped)
+                else:
+                    _validate_failure(mapped)
+            except PlanError:
+                if execution.state == ExecutionState.EXPIRED:
+                    return "expired"
+                mapped = Failed(INVALID_WORKFLOW_RESULT, "Task class returned an invalid workflow result")
             if isinstance(mapped, Completed):
-                self._complete(execution, mapped, now, record_outputs)
+                if record_outputs is not None:
+                    output = _json_object(record_outputs(execution, output))
+                self._complete(execution, mapped, now, output)
+            elif mapped.error_code == INVALID_WORKFLOW_RESULT:
+                self._fail(execution, mapped, now, retryable=False)
             else:
                 self._fail(execution, mapped, now)
             return "applied"
+
+    def _map_workflow_result(self, execution, outcome):
+        # A worker with an incomplete registry or unavailable database cannot decide the result.
+        task = execution.task
+        self.registry.resolve(task.task_type, task.definition_version)
+        try:
+            instance = self.task_instance(execution)
+        except PlanError:
+            logger.exception("Workflow task could not be restored", extra={"execution_id": execution.id, "task_id": task.id})
+        else:
+            try:
+                mapped = instance.on_workflow_result(outcome)
+                if isinstance(mapped, (Completed, Failed)):
+                    return mapped
+            except Exception:
+                logger.exception("Workflow result mapping failed", extra={"execution_id": execution.id, "task_id": task.id})
+        return Failed(INVALID_WORKFLOW_RESULT, "Task class could not map the workflow result")
 
     @transaction.atomic
     def register_provider_job(self, execution_id, step_key, provider, job_id):

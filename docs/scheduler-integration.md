@@ -20,21 +20,21 @@ T03 将 `SCHEDULER_WORKFLOW_DISPATCHER` 配置为接收 `WorkflowRequest` 的函
 | --- | --- |
 | 工作流接收 | `accept_workflow(execution_id)` 返回 `WorkflowAcceptance`。仅首次 `accepted` 携带业务输入，其他状态用来结束重复、过期或未就绪的调用 |
 | 执行有效性 | `workflow_is_current(execution_id)` 在已接收的工作流仍是当前执行且未到期时返回真 |
-| 工作流结果 | `submit_workflow_result(execution_id, Completed(...) 或 Failed(...))`。结果先经任务类的 `on_workflow_result()` 映射，当前有效结果才可在项目锁内提交 |
+| 工作流结果 | `submit_workflow_result(execution_id, Completed(...) 或 Failed(...))`。结果先经任务类的 `on_workflow_result()` 映射，当前有效结果才可在项目锁内提交。映射异常或无效结果会将当前执行记为 `invalid_workflow_result`，等待人工处理 |
 | 素材登记 | T03 和 T04 可以传入 `record_outputs(execution, output) -> dict`。函数仅写数据库并返回最终引用，与任务完成同事务。服务身份、上传与对象验证在调用前由接入层完成 |
 | 供应商任务 | `register_provider_job(execution_id, step_key, provider, job_id)` 幂等登记。状态不明时，接入层核实所登记的任务已无法再产出后，调用 `confirm_provider_jobs_inactive(execution_id, jobs=已核查的快照)` 恢复重试策略 |
 | 传输失败 | 派发函数用 `DeliveryError(code, retryable=True)` 表示可重传，同一执行退避重发。确定不可重试时传 `retryable=False` |
 
-T03 在 HTTP 入口负责服务授权、关联任务与执行 ID、接口版本和请求字段校验。结果已成功提交时，重复回调返回 `already_processed`。已超时的成功结果只有仍对应当前执行时才可被接纳。工作流派发器尚未配置时，Worker 仍可执行本地任务。
+T03 在 HTTP 入口负责服务授权、关联任务与执行 ID、接口版本和请求字段校验。响应 `applied` 表示结果已入库，包括任务类判定的业务失败。重复回调返回 `already_processed`。已超时的有效成功结果只有仍对应当前执行时才可被接纳。素材登记异常会回滚本次写入，回调可使用同一执行 ID 重试提交。派发函数的网络请求应设置超时，并受 `deadline_at` 约束。工作流派发器尚未配置时，Worker 仍可执行本地任务。
 
 ## 接入工作台
 
 T05 通过 `set_enabled(schedule_id, enabled)` 暂停或继续，首次启动时间在 `Schedule.started_at`。项目完成以根任务 `state` 为准。用 `retry(schedule_id, task_id)` 重试失败阻塞或已超时的任务，`StateConflict` 表示当前状态不允许操作。`provider_jobs_unverified` 需要接入层完成供应商核查后才能重试。
 
-读取任务和历史时按 `Task.schedule_id` 限定查询范围。`parent_id` 用于展示任务树，`dependencies` 与 `waits` 用于说明阻塞，`executions` 提供执行历史。项目进度取根任务的 `progress`，其值是 0 到 1 的小数，在界面转换为百分比。收尾时进度可以先达到 100%，后续任务只在当前任务完成后才启动。
+读取任务和历史时按 `Task.schedule_id` 限定查询范围。`parent_id` 用于展示任务树，`dependencies` 与 `waits` 用于说明阻塞，`executions` 提供执行历史。执行的 `accepted` 表示本地 Worker 已接收，外部工作流接收时间使用 `workflow_accepted_at`。项目进度取根任务的 `progress`，其值是 0 到 1 的小数，在界面转换为百分比。收尾时进度可以先达到 100%，后续任务只在当前任务完成后才启动。
 
 ## 运行与验证
 
-`manage.py run_scheduler` 持续轮询，`--once` 执行一轮领取与派发，`--check` 检查数据库连接。调度器使用 PostgreSQL 行锁与会话级 advisory lock，Worker 应使用能保留数据库会话的连接。按 [仓库说明](../README.md) 启动数据库并运行迁移和测试。
+`manage.py run_scheduler` 持续轮询，`--once` 执行一轮领取与派发，`--check` 检查数据库连接。Worker 优先处理已登记的派发，按已注册的任务版本领取、派发及回收。单条派发的临时持久化故障可以等租约到期后重试，其他任务继续推进。调度器使用 PostgreSQL 行锁与会话级 advisory lock，Worker 应使用能保留数据库会话的连接。按 [仓库说明](../README.md) 启动数据库并运行迁移和测试。
 
 调度测试在真实 PostgreSQL 上运行，覆盖多连接领取、暂停竞争、持久化派发、工作流重复回调、超时与重试竞争、等权进度和旧版本恢复。

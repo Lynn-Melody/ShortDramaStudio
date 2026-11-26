@@ -5,15 +5,16 @@ from threading import Barrier, Event
 from uuid import uuid4
 
 import pytest
-from django.db import connections, transaction
+from django.db import OperationalError, connections, transaction
 from django.db.models.functions import Now
 from django.utils import timezone
 
 from scheduler.examples import BatchTask, ValueTask
+from scheduler.locks import decision_lock
 from scheduler.models import Dependency, Dispatch, DispatchKind, Execution, ExecutionState, Schedule, Task, TaskState
-from scheduler.service import PROVIDER_CHECK, Scheduler, StateConflict
+from scheduler.service import INVALID_WORKFLOW_RESULT, PROVIDER_CHECK, Scheduler, StateConflict
 from scheduler.tasks import BaseTask, Completed, Failed, PlanError, RetryPolicy, TaskRegistry
-from scheduler.worker import DeliveryError, Worker, _decision_lock
+from scheduler.worker import DeliveryError, Worker
 
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -45,9 +46,31 @@ class NewValue(ValueTask):
         return self.finish({"value": self.input["value"] * 10})
 
 
+class CannotRestore(ValueTask):
+    task_type = "test.cannot_restore"
+
+    def __init__(self, input, *, checkpoint=None, **context):
+        if checkpoint is not None:
+            raise TypeError("Cannot restore this task")
+        super().__init__(input, checkpoint=checkpoint, **context)
+
+
+class InvalidWorkflow(WorkflowTask):
+    task_type = "test.invalid_workflow"
+    retry_policy = RetryPolicy(retryable_error_codes=frozenset({INVALID_WORKFLOW_RESULT}))
+
+    def on_workflow_result(self, result):
+        kind = self.input["kind"]
+        if kind == "exception":
+            raise KeyError("missing output field")
+        if kind == "outcome":
+            return None
+        return Completed({"invalid": object()})
+
+
 @pytest.fixture
 def scheduler():
-    return Scheduler(TaskRegistry(BatchTask, ValueTask, NewValue, WorkflowTask, LimitedValue))
+    return Scheduler(TaskRegistry(BatchTask, ValueTask, NewValue, WorkflowTask, LimitedValue, CannotRestore, InvalidWorkflow))
 
 
 def schedule_task(scheduler, root_class=BatchTask, payload=None):
@@ -299,21 +322,74 @@ def test_local_outbox_recovery_fences_the_old_lease(scheduler):
     assert root.output == {"value": 11}
 
 
-def test_expired_lease_does_not_run_a_second_local_decision_concurrently(scheduler):
+def test_expired_lease_is_preserved_while_its_local_decision_is_running(scheduler):
     schedule, root = schedule_task(scheduler, ValueTask, {"value": 11})
     execution, first = claim_local(scheduler, schedule)
     Dispatch.objects.filter(pk=first.pk).update(lease_until=Now())
     worker = Worker(scheduler)
-    with _decision_lock(execution.id) as acquired:
+    with decision_lock(execution.id) as acquired:
         assert acquired
         with ThreadPoolExecutor(max_workers=1) as pool:
-            assert pool.submit(run_in_connection, worker.tick).result(timeout=5)
-    root.refresh_from_db()
-    assert root.state == TaskState.RUNNING
-    Dispatch.objects.filter(pk=first.pk).update(available_at=Now())
-    assert worker.tick()
+            assert not pool.submit(run_in_connection, worker.tick).result(timeout=5)
+        assert Dispatch.objects.get(pk=first.pk).lease_id == first.lease_id
+        assert scheduler.submit_local(execution.id, first.lease_id, Completed({"value": 11})) == "applied"
     root.refresh_from_db()
     assert root.state == TaskState.COMPLETED
+    assert root.output == {"value": 11}
+
+
+@pytest.mark.parametrize("expired", [False, True])
+def test_older_worker_ignores_another_versions_claimed_execution(scheduler, expired):
+    schedule, new_root = schedule_task(scheduler, NewValue, {"value": 3})
+    execution = scheduler.claim_next(schedule_id=schedule.id)
+    if expired:
+        Execution.objects.filter(pk=execution.id).update(deadline_at=Now())
+    _, old_root = schedule_task(scheduler, ValueTask, {"value": 4})
+    assert Worker(Scheduler(TaskRegistry(ValueTask))).tick()
+    old_root.refresh_from_db()
+    new_root.refresh_from_db()
+    execution.refresh_from_db()
+    assert old_root.state == TaskState.COMPLETED
+    assert new_root.state == TaskState.RUNNING and execution.state == ExecutionState.QUEUED
+    assert execution.dispatches.get().lease_id is None
+    if expired:
+        assert scheduler.reap_one() == execution.id
+    else:
+        assert Worker(scheduler).tick()
+        new_root.refresh_from_db()
+        assert new_root.output == {"value": 30}
+
+
+def test_worker_blocks_a_task_it_cannot_restore_and_continues(scheduler):
+    _, broken = schedule_task(scheduler, CannotRestore, {"value": 1})
+    _, healthy = schedule_task(scheduler, ValueTask, {"value": 2})
+    worker = Worker(scheduler)
+    assert worker.tick() and worker.tick()
+    broken.refresh_from_db()
+    healthy.refresh_from_db()
+    assert broken.state == TaskState.WAITING and broken.blocked_reason == "handler_failed"
+    assert broken.current_execution.state == ExecutionState.FAILED and broken.retry_at is None
+    assert healthy.state == TaskState.COMPLETED
+
+
+def test_dispatch_persistence_failure_leaves_its_lease_and_other_work_continues(scheduler, monkeypatch):
+    _, broken = schedule_task(scheduler, ValueTask, {"value": 1})
+    _, healthy = schedule_task(scheduler, ValueTask, {"value": 2})
+    submit = scheduler.submit_local
+
+    def fail_one(execution_id, lease_id, outcome):
+        if Execution.objects.get(pk=execution_id).task_id == broken.id:
+            raise OperationalError("Could not commit this decision")
+        return submit(execution_id, lease_id, outcome)
+
+    monkeypatch.setattr(scheduler, "submit_local", fail_one)
+    worker = Worker(scheduler)
+    assert worker.tick() and worker.tick()
+    broken.refresh_from_db()
+    healthy.refresh_from_db()
+    leased = broken.current_execution.dispatches.get()
+    assert leased.lease_id and leased.delivered_at is None
+    assert healthy.state == TaskState.COMPLETED
 
 
 def make_external(scheduler, root_name="first"):
@@ -321,6 +397,20 @@ def make_external(scheduler, root_name="first"):
     assert Worker(scheduler).tick()
     task.refresh_from_db()
     return schedule, task, task.current_execution
+
+
+def test_worker_delivers_backlog_before_claiming_new_work(scheduler):
+    _, _, execution = make_external(scheduler)
+    _, waiting = schedule_task(scheduler, ValueTask, {"value": 9})
+    sent = []
+    worker = Worker(scheduler, dispatch_workflow=lambda request: sent.append(request.execution_id))
+    assert worker.tick()
+    waiting.refresh_from_db()
+    assert sent == [execution.id]
+    assert waiting.state == TaskState.WAITING and not waiting.executions.exists()
+    assert worker.tick()
+    waiting.refresh_from_db()
+    assert waiting.state == TaskState.COMPLETED
 
 
 def test_delivery_retries_same_execution_until_workflow_accepts(scheduler):
@@ -361,20 +451,37 @@ def test_delivery_retries_same_execution_until_workflow_accepts(scheduler):
     assert not scheduler.workflow_is_current(execution.id)
 
 
-def test_output_registration_rolls_back_with_workflow_completion(scheduler):
+@pytest.mark.parametrize("error_type", [RuntimeError, PlanError])
+def test_output_registration_rolls_back_with_workflow_completion(scheduler, error_type):
     _, task, execution = make_external(scheduler)
     scheduler.accept_workflow(execution.id)
 
     def register_then_fail(attempt, output):
         Task.objects.filter(pk=attempt.task_id).update(output={"partial": True})
-        raise RuntimeError("storage metadata failed")
+        raise error_type("storage metadata failed")
 
     outcome = Completed({"result": "ready"})
-    with pytest.raises(RuntimeError, match="storage metadata"):
+    with pytest.raises(error_type, match="storage metadata"):
         scheduler.submit_workflow_result(execution.id, outcome, record_outputs=register_then_fail)
     task.refresh_from_db()
     assert task.state == TaskState.RUNNING and task.output is None
     assert scheduler.submit_workflow_result(execution.id, outcome) == "applied"
+
+
+@pytest.mark.parametrize("kind", ["exception", "outcome", "output"])
+def test_invalid_workflow_mapping_blocks_without_automatic_retry(scheduler, kind):
+    _, task = schedule_task(scheduler, InvalidWorkflow, {"kind": kind})
+    assert Worker(scheduler).tick()
+    task.refresh_from_db()
+    execution_id = task.current_execution_id
+    assert scheduler.accept_workflow(execution_id).status == "accepted"
+    outcome = Completed({"result": "rendered"})
+    assert scheduler.submit_workflow_result(execution_id, outcome) == "applied"
+    assert scheduler.submit_workflow_result(execution_id, outcome) == "already_processed"
+    task.refresh_from_db()
+    assert task.blocked_reason == INVALID_WORKFLOW_RESULT and task.state == TaskState.WAITING
+    assert task.retry_at is None and task.current_execution.state == ExecutionState.FAILED
+    assert scheduler.claim_next() is None
 
 
 @pytest.mark.parametrize("claim_retry", [False, True])

@@ -1,11 +1,15 @@
+import logging
 from time import sleep
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db import close_old_connections, connection
+from django.db import InterfaceError, OperationalError, close_old_connections, connection
 from django.utils.module_loading import import_string
 
 from scheduler.worker import Worker, configured_scheduler
+
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -31,8 +35,14 @@ class Command(BaseCommand):
         self.stdout.write("Scheduler ready.")
         try:
             while True:
-                close_old_connections()
-                if not worker.tick():
+                try:
+                    close_old_connections()
+                    did_work = worker.tick()
+                except (InterfaceError, OperationalError):
+                    logger.exception("Scheduler database unavailable")
+                    connection.close()
+                    did_work = False
+                if not did_work:
                     sleep(options["poll_interval"])
         except KeyboardInterrupt:
             return
