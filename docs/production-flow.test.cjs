@@ -40,7 +40,7 @@ test('collaboration guide assigns each first-release task to one seat', () => {
 });
 
 test('local documentation links resolve after moving the workflow', () => {
-  for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md']) {
+  for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md', 'docs/scheduler-integration.md']) {
     const path = resolve(__dirname, '..', file);
     const text = readFileSync(path, 'utf8');
     for (const [, target] of text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
