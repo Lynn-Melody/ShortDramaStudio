@@ -2,7 +2,7 @@
 
 ## 技术决策
 
-首版采用 **Django 5.2 LTS、Django REST Framework、PostgreSQL 任务调度和 React 工作台**。Django API 和独立 Worker 共用生产领域服务，n8n 执行单个生产任务，专业 Agent 在自建服务中运行。媒体文件存入私有对象存储。生产顺序遵循 [项目约定](../AGENTS.md)，工作台交互遵循 [产品设计](product-design.md)。
+首版采用 **Django 5.2 LTS、Django REST Framework、PostgreSQL 任务调度和 React 工作台**。Django API 和独立 Worker 共用通用任务服务。具体任务类型采用继承 BaseTask 的类实现，在执行中决定子任务和依赖。n8n 执行单个生产任务，专业 Agent 在自建服务中运行。媒体文件存入私有对象存储。生产顺序遵循 [生产流程](production-flow.md)，工作台交互遵循 [产品设计](product-design.md)。
 
 | 层级 | 选型 | 用途 |
 | --- | --- | --- |
@@ -23,8 +23,9 @@
 | --- | --- |
 | `apps/web` | 项目列表、任务树、任务详情、素材库和主题，通过公开 REST 接口读取或操作项目 |
 | `apps/backend/studio` | Django 项目配置、身份校验、DRF 路由挂载、OpenAPI 生成和 Admin 入口 |
-| `apps/backend/production` | 项目、分集和任务模型及迁移，生产阶段、状态事务、进度算法、控制接口和执行回调。Django API 与 Worker 调用同一套服务 |
-| `apps/backend/production/management/commands` | 平台调度 Worker 入口 `manage.py run_scheduler`，扫描就绪和过期任务、派发 n8n Webhook、恢复未送达记录 |
+| `apps/backend/scheduler` | 通用任务、子任务位置、依赖和执行记录，BaseTask、任务类注册表、原子领取、结果提交、恢复与等权进度 |
+| `apps/backend/production` | 项目、分集和分镜数据及具体生产任务类。负责生产流程、子任务定义、素材复用和媒体输入规则，调用通用任务服务 |
+| `apps/backend/scheduler/management/commands` | 平台调度 Worker 入口 `manage.py run_scheduler`，扫描就绪和过期任务、派发本地任务类与外部工作流、恢复未送达记录 |
 | `apps/backend/media` | 素材、版本和交付模型及迁移，素材库查询、产物登记和对象存储签名 |
 | `apps/backend/contracts` | 版本化 DRF Serializer，定义 HTTP 请求响应和叶子任务输入输出 |
 | `apps/agents` | 独立 Python 服务，通过内部 HTTP 接口运行九个专业角色，负责版本化配置、上下文、工具权限、运行记录和产物交接 |
@@ -34,28 +35,87 @@
 
 ## 核心调度
 
+### 任务类与持久化记录
+
+任务类是任务处理器的面向对象实现。数据库任务记录保存状态，Python 对象在每次执行时由记录恢复。通过 `(task_type, definition_version)` 注册并定位具体类，所有类型继承 `BaseTask`。调度核心依赖基类协议，生产模块注册具体类。生产阶段、首尾帧、对白顺序和素材复用规则只在生产任务类中实现。
+
+| 基类方法 | 职责 |
+| --- | --- |
+| `on_init()` | 创建任务时生成初始检查点、固定 `child_total` 和对应位置。仅初始化，不进行外部调用；重复创建请求不得重复初始化已持久化任务 |
+| `on_processing()` | 读取不可变输入、检查点与子任务产出，决定本次创建、等待、完成或调用工作流 |
+| `child(key, task_class, input, depends_on)` | 声明一个预留位置上的子任务，尚未直接写库 |
+| `wait_for_children(children, wait_for, next_step)` | 返回待保存的子任务、依赖、等待位置集合及恢复检查点 |
+| `finish(output)` | 返回完成结果，平台验证位置全部完成后原子提交 |
+| `invoke_workflow(name, input)` | 返回外部工作流调用请求，由持久化派发器送达 |
+| `get_parent_task()` | 读取父任务信息，子任务不直接修改父任务步骤 |
+
+`cur_step` 等运行状态存入 `checkpoint`。构造 Python 对象时加载检查点，不重复调用 `on_init()`。初始化清单与参数在任务创建时固定，叶子任务 `child_total = 0`。初始化方案可在事务外准备，写入时校验输入版本和唯一键。项目绑定定义版本，已创建任务按绑定的类版本和检查点格式恢复。
+
+以下为业务任务类的接口示意，非已实现代码。创建「制作分镜」时声明三个位置 `dialogue`、`video`、`sound`。
+
+```python
+class ShotTask(BaseTask):
+    def on_init(self):
+        self.child_total = 3
+        self.child_keys = ["dialogue", "video", "sound"]
+        self.cur_step = 0
+
+    def on_processing(self):
+        if self.cur_step == 0:
+            return self.wait_for_children(
+                children=[self.child("dialogue", ShotDialogueTask, self.input)],
+                wait_for=["dialogue"],
+                next_step=1,
+            )
+        if self.cur_step == 1:
+            return self.wait_for_children(
+                children=[
+                    self.child("video", ShotVideoTask, self.input),
+                    self.child("sound", ShotSoundTask, self.input),
+                ],
+                wait_for=["video", "sound"],
+                next_step=2,
+            )
+        return self.finish()
+```
+
+`next_step` 是下一次恢复的位置。等待集合全部完成前，当前任务不能再次领取。下次执行收到已完成子任务的产出，具体类选择并固定需要的输入版本。无对白时，`ShotDialogueTask` 直接返回完成；有对白时调用音频工作流。
+
 ### 任务图和执行状态
 
-- `parent_id` 表示任务的创建关系，用来构造工作台任务树。`task_dependencies` 表示执行前置条件，包含本镜视频依赖本镜对白等关系。依赖在创建任务时写入，端点限同一项目，构图时检查无环。
-- 编排任务推进一个阶段，创建子任务后回到等待。顺序步骤只创建当前子任务。并行批次先一次性登记成员，成员全部完成后汇合，空批次直接完成。子任务用 `(parent_id, child_key)` 去重，根任务每项目唯一。
-- 任务只有 `waiting`、`running`、`timed_out`、`completed` 四种状态。执行单独记录 `queued`、`accepted`、`succeeded`、`failed`、`expired` 以及截止时间和结果。待送达和已接收的执行都可能到期。业务失败结束当前执行，任务回到 `waiting` 并标记 `execution_failed`，由显式重试清除阻塞。真超时进入 `timed_out`。两种情况均保留已有产物和执行记录。
-- 创建项目时同事务创建等待中的根任务，项目展示「已暂停」。首次「继续」记录启动时间，之后「暂停／继续」切换派发开关。已完成项目的状态由根任务推导。「暂停」以领取事务为界，之后停止新领取，已经领取的执行可以送达和收尾。回调可登记产物及创建等待中的后继任务。继续后再领取。
+- `parent_id` 只表示创建关系，用于任务树和进度汇总，不自动构成执行依赖。`task_dependencies` 保存任务执行前置条件，`task_waits` 保存当前执行提交的直属子任务等待集合。两类阻塞边共同校验无环，端点限同一项目。
+- 每个任务创建时确定直属子任务总数 `child_total`，并预留等量位置。位置不是可调度的任务，具体类在执行过程中填入真实子任务。`(parent_id, child_key)` 唯一，重复创建相同定义幂等，冲突定义拒绝提交。确定无需执行的位置由对应任务直接完成并记录原因。
+- 任务只有 `waiting`、`running`、`timed_out`、`completed` 四种状态。执行记录单独使用 `queued`、`accepted`、`succeeded`、`failed`、`expired`。业务失败时任务回到 `waiting` 并设置阻塞原因，显式重试后才可派发；超时进入 `timed_out`。两者保留已提交检查点和子任务。
+- 项目启用派发、没有失败阻塞、前置依赖与当前等待集合全部完成时，等待任务可领取。通过未满足依赖查询筛选就绪任务，无需每轮对全图进行拓扑排序。空批次由具体类直接完成。
+- 创建项目时同事务创建等待中的根任务，项目初始暂停。暂停以领取事务为界，停止新领取，已经领取的执行可以送达和收尾。继续后再领取就绪任务。项目是否完成取决于根任务状态。
+
+### 执行结果协议
+
+| 结果 | 平台提交行为 |
+| --- | --- |
+| `completed` | 保存产出；校验所有预留子任务位置已完成；结束本次执行并完成任务；解除相关依赖阻塞，更新祖先进度 |
+| `wait_for_children` | 一次事务保存新子任务及其初始化定义、依赖、非空等待集合和检查点；本次执行成功结束，当前任务转回等待 |
+| `invoke_workflow` | 持久化工作流名、输入版本和 outbox 派发记录；当前任务及执行保持运行，等待工作流回调 |
+| `failed` | 记录错误，结束本次执行，任务回到等待并阻塞，等待显式重试 |
+
+`wait_for_children` 可引用新创建或已存在的直属子任务，前置依赖可引用同批子任务键或已有本项目任务 ID。通用服务验证位置归属、总数、同键定义、任务类型、引用和依赖环路，任一失败则整批回滚。完成子任务不会调用父对象的 `step_forward()`，父任务满足等待条件后重新执行自己的 `on_processing()`。
+
+外部工作流调用使用当前执行 ID 和稳定调用键去重。调用意图持久化后，恢复派发使用 outbox，不再次执行该执行的业务决策。工作流以 `completed` 或 `failed` 回调；需要多轮外部操作的业务可拆成子任务。外部网络调用和任务类执行均在数据库锁事务之外进行。
 
 ### 领取、派发和回调
 
-1. **领取。** Worker 按最早就绪顺序扫描启用派发的项目，在 `transaction.atomic()` 里用 `select_for_update(skip_locked=True, of=("self",))` 领取项目行，取得锁后重查状态、依赖和并发余额。同项目的创建后推进、暂停、领取、回调、超时、重试均先锁项目行，再更新任务和执行。短事务中把叶子任务设为运行，固定本次输入版本，生成执行 ID，写入开始时间、截止时间及一条 `dispatch_outbox`。编排推进在同一套项目锁规则下完成。 [Django 事务](https://docs.djangoproject.com/en/5.2/topics/db/transactions/) · [Django 行锁](https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update)
-2. **送达。** Worker 用可过期租约领取 outbox 记录，提交事务后调用对应 n8n Webhook。首个有业务逻辑的节点调用平台 `accept` 接口，原子接收该执行并登记已送达。重复请求返回 `already_accepted`，工作流据此结束。HTTP 超时或临时传输错误时，在截止时间内退避重发同一执行 ID。n8n 在接收检查后响应 Webhook，再继续生产。已接收的工作流可在 n8n 自己的执行记录中排查。 [n8n Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/) · [Respond to Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.respondtowebhook/)
-3. **完成。** 回调先校验产物结构和上传归属，网络校验在事务外完成。锁定项目后，用 `clock_timestamp()` 检查当前执行 ID、执行状态和截止时间。只有当前、已接收且未到期的执行能修改任务。成功时，同事务登记素材版本、标记完成、推进父任务、创建后继节点、更新项目进度。重复或迟到回调返回已处理或已过期，现有产物引用和进度保持一致。
-4. **恢复。** Worker 定期回收超时执行和过期 outbox 租约。执行失败或超时后，重试沿用任务 ID，领取时分配新执行 ID。支持幂等键的外部服务使用该执行 ID 或其派生步骤键。已接收但结果不明的付费调用，先按外部 job ID 核查再重试。网络送达按可重发设计，平台的产物登记与阶段推进按执行去重。
+1. **领取。** Worker 按最早就绪顺序扫描启用派发的项目，在 `transaction.atomic()` 里用 `select_for_update(skip_locked=True, of=("self",))` 领取项目行，取得锁后重查状态、依赖和并发余额。同项目的创建、暂停、领取、结果提交、超时、重试均先锁项目行，再更新任务和执行。短事务中把就绪任务设为运行，固定输入与检查点快照，生成执行 ID，写入开始时间、截止时间及本地执行派发记录。 [Django 事务](https://docs.djangoproject.com/en/5.2/topics/db/transactions/) · [Django 行锁](https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update)
+2. **送达。** Worker 用可过期租约领取 outbox 记录，提交事务后通过注册表调用任务类的 `on_processing()`。本地执行同样按执行 ID 接收和提交，重复投递不能并发执行同一执行。任务类返回外部调用请求时，再通过持久化 outbox 调用对应 n8n Webhook。首个有业务逻辑的节点调用平台 `accept` 接口，原子接收该执行并登记已送达。重复请求返回 `already_accepted`，工作流据此结束。HTTP 超时或临时传输错误时，在截止时间内退避重发同一执行 ID。n8n 在接收检查后响应 Webhook，再继续生产。已接收的工作流可在 n8n 自己的执行记录中排查。 [n8n Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/) · [Respond to Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.respondtowebhook/)
+3. **完成。** 回调先校验产物结构和上传归属，网络校验在事务外完成。锁定项目后，用 `clock_timestamp()` 检查当前执行 ID、执行状态和截止时间。只有当前、已接收且未到期的执行能修改任务。按执行结果协议，在同一事务中保存产物、子任务、依赖、等待集合和检查点，更新状态与进度。子任务完成只解除等待，后续子任务由父任务下次执行决定。重复或迟到回调返回已处理或已过期，现有产物引用和进度保持一致。
+4. **恢复。** Worker 定期回收超时执行和过期 outbox 租约。执行失败或超时后，重试沿用任务 ID、已保存检查点和已有子任务，领取时分配新执行 ID。支持幂等键的外部服务使用该执行 ID 或其派生步骤键。已接收但结果不明的付费调用，先按外部 job ID 核查再重试。网络送达按可重发设计，平台的产物登记与阶段推进按执行去重。
 
 Worker 首版单进程运行，领取实现支持多实例并发。各任务类型配置执行期限和项目内并发上限，根据两镜头试制数据调整。日志以 `project_id`、`task_id`、`execution_id` 串联平台、n8n 与 Agent 记录。采集就绪等待时长、队列深度、派发重发、执行失败、超时和每类任务耗时。
 
-### 生产步骤与版本依赖
+### 业务流程与版本依赖
 
-- 根任务依次推进全剧规划、全局关键素材生成、全部剧集制作。剧集按规划的集序一次派发一集，本集成片、字幕和时间轴齐备后推进下一集。
-- 单集依次推进制作分集剧本、分集剧本结构化、分集关键素材制作、制作分集全部分镜图、制作所有分镜、剪辑与合成。分镜方案先定义素材需求。人物、场景和道具按稳定业务 ID 复用或并行补齐，**所需素材全齐才并行出分镜图**。
-- 所有分镜图及采用版本齐备后，「制作所有分镜」获取本集分镜列表，并行创建「制作分镜」子任务。每个分镜先创建「制作分镜对话音频」子任务，根据 `dialogue` 调用「制作音频 n8n 工作流」；无输入对话时仍创建该任务，直接完成且不调用工作流。对话音频任务完成后，再并行创建「制作分镜视频」和「制作分镜音效」子任务；音效根据 `sound` 调用同一条「制作音频 n8n 工作流」。视频与音效全部完成后，本分镜完成；所有分镜完成后进入剪辑与合成。各分镜独立推进。视频读取实际配音时长，无对白时读取预计时长。音效在剪辑时按画面对齐。本镜图作首帧，同场景的下一镜图作尾帧，跨场景和末镜留空。口型驱动与最终合成引用同一版对白。
-- 半成品失败重试沿用同一逻辑任务。已完成任务重跑时，创建独立的候选任务，保留历史版本和已固定的引用。候选任务不计入原生产进度。需要替换口型驱动对白时，由平台显式派发受影响镜头和合成的新执行链，沿用既有分镜与素材的版本引用。首版工作台自动按任务推进，人工审核和批量操作属于后续产品范围。
+完整业务流程与任务结构见 [生产流程](production-flow.md)。修改生产步骤时修改具体任务类及对应版本，通用调度模块保持统一协议。项目在创建时绑定版本，恢复和重试使用原版本。
+
+已完成任务重跑时创建独立候选任务，保留原任务、素材和固定输入版本。候选任务不占用原父任务的预留位置，不计入原生产进度；另行关联来源任务。需要交付重制时由具体任务类编排新执行链。失败重试则沿用原逻辑任务。
 
 ## 数据与接口
 
@@ -64,7 +124,9 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 | 数据 | 最小职责与约束 |
 | --- | --- |
 | `projects`、`episodes`、`shots` | 项目 Idea、派发开关、任务定义版本。项目内集号唯一，分集内分镜顺序与业务 ID 分别唯一，场景用稳定 ID |
-| `tasks`、`task_dependencies` | 任务类型、父节点、当前阶段、状态、阻塞原因、当前执行 ID。支持按项目、父节点和状态索引 |
+| `tasks` | 任务类型与定义版本、父节点、直属子任务总数、检查点、输入输出、状态、阻塞原因、当前执行 ID。按项目、父节点、状态索引 |
+| `task_child_slots` | 创建时固定的位置键，权重均为 1，可暂未绑定子任务；父任务与位置键唯一，每个位置至多绑定一个任务 |
+| `task_dependencies`、`task_waits` | 执行前置依赖及当前恢复前等待集合，同项目无环；只有位置已绑定且对应任务完成才满足等待 |
 | `task_executions`、`dispatch_outbox` | 每次尝试的请求快照、状态、截止时间、外部 job ID。每个任务至多一个正在执行的尝试，每个执行唯一派发记录 |
 | `asset_items`、`asset_versions` | 每项目用业务键归并同一份素材，版本不可变。保存类型、集与镜头范围、对象键、生成执行及必要的媒体元数据 |
 | `execution_uploads`、`execution_inputs`、`task_outputs` | 约束上传归属，记录每次执行采用的确切素材版本和实际产出。按执行及输出槽位做唯一约束 |
@@ -93,7 +155,17 @@ API 与内部接口分别从后端 Serializer 生成 OpenAPI 3.1。前端从公�
 
 素材库默认显示当前制作集，尚无当前集时显示全剧共用素材。打开任务产出视图时，将当前范围、筛选和滚动位置压入界面状态，读取该任务产出的全部确切版本。返回时恢复浏览状态，任务树位置由中栏独立保留。
 
-**进度是待产品确认的暂定默认。** 全剧规划、全局素材、全部剧集先用 `10% / 15% / 75%`。规划就绪后固定剧集清单，剧集份额均分。单集六阶段权重暂用 `10 / 10 / 10 / 20 / 35 / 15`，并行阶段按一次登记的批次成员计算。阶段未展开时贡献为零，空批次完成时计满，展示向下取整，根任务完成前最高 `99%`，完成后展示 `100%`。权重和任务定义版本随项目固定，进度不会因新增任务而倒退。
+### 等权递归进度
+
+每个子任务在父任务中的权重均为 `1`。创建时固定 `child_total`，后续填充位置不改变分母。未填充的位置贡献为 `0`。叶子任务以及子任务总数为零的空批次，在任务完成前进度为 `0`，完成后为 `1`。
+
+```text
+child_total = 0 时：progress = 1（completed），否则为 0
+child_total > 0 时：progress = 所有已绑定子任务的 progress 之和 / child_total
+项目进度 = 根任务 progress
+```
+
+递归计算使用未取整的值，最后展示时才转换为百分比。无需执行的任务直接完成，照常贡献 `1`。完成事件原子更新任务与祖先聚合，重复事件不重复累计；可以从持久化任务树重算。该值表示任务结构完成比例，不表示时间或成本。全部子任务完成但父任务尚在收尾时，计算进度可达 100%，界面仍按父任务状态显示运行或等待，下游仅依据完成状态启动。
 
 ### n8n 与 Agent 接口
 
@@ -102,7 +174,7 @@ API 与内部接口分别从后端 Serializer 生成 OpenAPI 3.1。前端从公�
 - 工作流经 `POST /executions/{executionId}/uploads` 申请专属对象键和短期上传地址，使用签名覆盖的 `If-None-Match: *` 条件上传。联调必须验证所选存储的条件写入和读取。经 `POST /executions/{executionId}/result` 回传 `taskId`、`executionId`、`schemaVersion`、`outcome`。成功结果携带结构化 `data` 以及 `outputs[]`，每项最少包括 `slot`、`assetKey`、`kind`、`title` 和 `uploadId`。`slot` 在单次执行内唯一。失败结果携带稳定的 `errorCode` 和可展示说明。过期或重复结果返回幂等响应，结构错误返回校验错误。 [S3 条件写入](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
 - 外部媒体服务接受任务后，工作流经 `PUT /executions/{executionId}/provider-jobs/{stepKey}` 登记供应商和 job ID，重复登记相同 job ID 幂等。平台查询历史执行时一并显示，供超时后核查。
 - Agent 服务提供内部 `POST /agent-runs` 与 `GET /agent-runs/{runId}`。请求给出 `role`、`executionId`、`stepKey` 和输入版本引用。平台为每个角色固定模型、提示词、工具和输出 schema 版本。同一执行内的相同步骤键返回同一个运行记录。工作流以结构化产物交接，上下游依赖已持久化的版本引用。
-- 关键叶子契约优先冻结。全剧规划输出有序剧集和关键素材清单。剧本结构化输出有序镜头、`sceneId`、预计时长、对白和音效提示。对白输出选定音轨、实际时长及逐句时间戳。分镜图输出选定的图片槽位。视频输入包含本镜首帧、可选尾帧、可选的对白版本和目标时长。合成输出固定的 `video`、`subtitles`、`timeline` 三个槽位。输出结构由对应任务类型和 `schemaVersion` 校验。
+- 具体生产任务的数据契约随任务类版本注册。全剧规划输出有序剧集和关键素材清单。剧本结构化输出有序镜头、`sceneId`、预计时长、对白和音效提示。对白输出选定音轨、实际时长及逐句时间戳。分镜图输出选定的图片槽位。视频输入包含本镜首帧、可选尾帧、可选的对白版本和目标时长。合成输出固定的 `video`、`subtitles`、`timeline` 三个槽位。输出结构由对应任务类型和 `schemaVersion` 校验。
 
 | 工作流 | 叶子任务类型 | 专业 Agent | 主产出 |
 | --- | --- | --- | --- |
@@ -126,9 +198,11 @@ API 与内部接口分别从后端 Serializer 生成 OpenAPI 3.1。前端从公�
 
 | 交付顺序 | 负责模块 | 验收 |
 | --- | --- | --- |
-| 1 | 调度与契约 | 创建项目后根任务等待。模拟工作流跑通两集、每集两镜，覆盖素材屏障、单镜对白依赖、末镜无尾帧、空批次和逐集交付 |
+| 1 | 调度与契约 | 先用与短剧无关的两种任务类验证串行、并行、条件直接完成、检查点恢复、固定位置与等权递归进度。生产类再用两集、每集两镜验证完整业务流程 |
 | 2 | 工作流接入与媒体 | 先接真实对白和视频，再补合成。两镜分别验证有对白生成与无对白任务直接完成，均在对话任务完成后创建视频和音效并行任务，验证双任务汇合及全部分镜汇合。同场景尾帧、独立配音和交付三产物可追溯到确切版本 |
 | 3 | 工作台 | 并发运行路径去重、无运行时保留根节点、两层下钻返回复原视角、暂停收尾、素材交付与主题保留。用数十集、每集数十镜的固定数据验证按范围加载 |
 | 4 | Agent 服务 | 先接编剧、剧本审核和导演，再接视觉、声音与后期角色。用固定剧本和镜头评测剧情一致性、角色一致性和音画时序。换提示词或模型时跑回归 |
 
 调度集成测试使用真实 PostgreSQL 和 `pytest.mark.django_db(transaction=True)`，以两个独立数据库连接并发争用同一任务。故障用例覆盖 Worker 领取后重启、Webhook 响应丢失、执行重复接收、结果重复回调、超时与成功竞争、暂停与领取竞争、旧执行迟到和原版本继续可读。PR 检查包含 Django 检查、后端单元与数据库测试、OpenAPI 契约与前端类型同步检查、工作台相关测试。每个模块先用共享契约和模拟结果独立验收，再接生产工具。 [pytest-django 事务测试](https://pytest-django.readthedocs.io/en/latest/database.html#testing-transactions)
+
+通用调度验收还需覆盖位置超额与重复绑定、未完成位置禁止父任务完成、等待集合与依赖联合成环、重复等待结果不重复创建子任务、父任务恢复前重启、100% 进度但尚未收尾不解锁下游，以及空批次和旧版本恢复。文档示意不替代后端实现测试。
