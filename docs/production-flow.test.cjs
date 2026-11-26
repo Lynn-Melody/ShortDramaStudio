@@ -39,6 +39,19 @@ test('collaboration guide assigns each first-release task to one seat', () => {
   assert.deepEqual(taskIds.sort(), ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10']);
 });
 
+test('review handoff gives T10 one sender and identifies the reviewed commit', () => {
+  const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
+  const handoff = text.split(/\r?\n/).find(line => line.startsWith('- 审核通过后'));
+  assert.ok(handoff);
+  assert.match(handoff, /作者通知 T10/);
+  assert.match(handoff, /审核者代发.*一名通知人/);
+  for (const field of ['待合并分支', '已审核的提交号', '审核结论', '测试结果']) {
+    assert.ok(handoff.includes(field), field);
+  }
+  assert.match(text, /T10 收到通知后核对已审核的提交号/);
+  assert.match(text, /有新提交时，重新审核并更新通知/);
+});
+
 test('local documentation links resolve after moving the workflow', () => {
   for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md', 'docs/scheduler-integration.md']) {
     const path = resolve(__dirname, '..', file);
