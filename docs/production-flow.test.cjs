@@ -30,6 +30,15 @@ test('collaboration guide delegates production rules to the dedicated document',
   assert.ok(!text.includes('首帧'));
 });
 
+test('collaboration guide assigns each first-release task to one seat', () => {
+  const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
+  const seats = [...text.matchAll(/^\|\s*([^|]+?)\s*\|\s*(T\d{2}(?:、T\d{2})*)\s*\|/gm)];
+  const taskIds = seats.flatMap(([, , tasks]) => tasks.split('、'));
+
+  assert.equal(seats.length, 7);
+  assert.deepEqual(taskIds.sort(), ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10']);
+});
+
 test('local documentation links resolve after moving the workflow', () => {
   for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md']) {
     const path = resolve(__dirname, '..', file);
