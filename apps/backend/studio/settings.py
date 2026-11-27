@@ -63,3 +63,25 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "OAS_VERSION": "3.1.0",
 }
+
+SCHEDULER_TASK_CLASSES = (
+    "production.tasks.ShortDrama",
+    "production.tasks.GlobalAssets",
+    "production.tasks.AllEpisodes",
+    "production.tasks.MakeEpisode",
+    "production.tasks.EpisodeAssets",
+    "production.tasks.AllShotImages",
+    "production.tasks.AllShots",
+    "production.tasks.MakeShot",
+    "production.leaves.SeriesPlan",
+    "production.leaves.EpisodeScript",
+    "production.leaves.EpisodeBreakdown",
+    "production.leaves.CharacterAsset",
+    "production.leaves.SceneAsset",
+    "production.leaves.PropAsset",
+    "production.leaves.ShotImage",
+    "production.leaves.ShotDialogue",
+    "production.leaves.ShotVideo",
+    "production.leaves.ShotSound",
+    "production.leaves.EpisodeEdit",
+)
