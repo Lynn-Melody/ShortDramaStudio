@@ -367,7 +367,8 @@ class Scheduler:
         task.blocked_reason, task.retry_at = ("" if expired else code), None
         # A timed-out workflow might have sent a provider request whose job ID has not arrived yet.
         needs_provider_check = execution.provider_jobs or (expired and execution.workflow_accepted_at is not None)
-        if retryable and needs_provider_check and execution.provider_jobs_checked_at is None:
+        # Check providers even for non-retryable failures: a manual retry could otherwise start a duplicate job.
+        if needs_provider_check and execution.provider_jobs_checked_at is None:
             task.blocked_reason = PROVIDER_CHECK
         elif retryable and task.attempt_count < policy.max_attempts:
             task.state = TaskState.WAITING
@@ -384,6 +385,7 @@ class Scheduler:
             retryable = outcome.error_code in policy.retryable_error_codes
         self._end(execution, ExecutionState.FAILED, {
             "outcome": "failed", "error_code": outcome.error_code, "message": outcome.message,
+            "retryable": retryable,
         }, now)
         self._retry_or_block(execution, now, code=outcome.error_code, retryable=retryable)
 
@@ -678,4 +680,5 @@ class Scheduler:
         execution.save(update_fields=["provider_jobs_checked_at"])
         expired = execution.state == ExecutionState.EXPIRED
         code = "timeout" if expired else execution.result["error_code"]
-        self._retry_or_block(execution, now, code=code, retryable=True, expired=expired)
+        retryable = expired or execution.result.get("retryable", True)
+        self._retry_or_block(execution, now, code=code, retryable=retryable, expired=expired)

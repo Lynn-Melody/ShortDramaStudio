@@ -616,6 +616,28 @@ def test_business_failure_blocks_immediately_and_provider_job_blocks_uncertain_r
     assert task.blocked_reason == "" and task.retry_at is not None
 
 
+def test_non_retryable_failure_with_provider_job_requires_check_before_manual_retry(scheduler):
+    schedule, task, execution = make_external(scheduler)
+    scheduler.accept_workflow(execution.id)
+    scheduler.register_provider_job(execution.id, "render", "example", "remote-1")
+    assert scheduler.submit_workflow_result(execution.id, Failed("business_rule")) == "applied"
+
+    task.refresh_from_db()
+    assert task.blocked_reason == PROVIDER_CHECK and task.retry_at is None
+    with pytest.raises(StateConflict, match="Verify"):
+        scheduler.retry(schedule.id, task.id)
+
+    execution.refresh_from_db()
+    scheduler.confirm_provider_jobs_inactive(execution.id, jobs=execution.provider_jobs)
+    task.refresh_from_db()
+    # Confirming the provider check must not turn a non-retryable failure into an automatic retry.
+    assert task.state == TaskState.WAITING
+    assert task.blocked_reason == "business_rule" and task.retry_at is None
+    assert scheduler.claim_next(schedule_id=schedule.id) is None
+    scheduler.retry(schedule.id, task.id)
+    assert scheduler.claim_next(schedule_id=schedule.id).id != execution.id
+
+
 def test_timeout_blocks_retry_while_provider_job_registration_is_in_flight(scheduler):
     schedule, task, execution = make_external(scheduler)
     scheduler.accept_workflow(execution.id)
