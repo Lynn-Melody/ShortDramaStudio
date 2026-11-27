@@ -91,7 +91,9 @@ test('branch CI runs quick checks and PR CI integrates with a reusable MinIO ima
   const [, quick, verify] = workflow.split(/^ {2}(?:quick|verify):\s*$/m);
   assert.match(quick, /if: github.event_name == 'push'/);
   assert.match(quick, /image: postgres:18/);
-  assert.match(quick, /uv run --locked pytest/);
+  assert.match(quick, /docker build --target development --file infra\/python.Dockerfile/);
+  assert.match(quick, /docker run --rm --network host.*STUDIO_DB_HOST=127\.0\.0\.1/);
+  assert.match(quick, /^ {12}pytest\s*$/m);
   assert.doesNotMatch(quick, /docker compose|test:e2e/);
   assert.match(verify, /name: Start development stack\s+if: github.event_name == 'pull_request'/);
   assert.match(verify, /key: studio-minio-v1-.*hashFiles\('infra\/minio.Dockerfile'\)/);

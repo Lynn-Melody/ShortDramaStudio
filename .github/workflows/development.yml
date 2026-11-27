@@ -31,21 +31,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: astral-sh/setup-uv@v10
-        with:
-          version: '0.13.10'
-          enable-cache: true
       - name: Check patch, docs and prototype
         run: |
           git diff --check origin/main...HEAD
           node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
       - name: Check Django without the full stack
-        env:
-          STUDIO_DB_HOST: 127.0.0.1
         run: |
-          uv run --locked python apps/backend/manage.py check
-          uv run --locked python apps/backend/manage.py makemigrations --check --dry-run
-          uv run --locked pytest
+          docker build --target development --file infra/python.Dockerfile --tag studio-quick-python:dev .
+          docker run --rm --network host -e STUDIO_DB_HOST=127.0.0.1 studio-quick-python:dev sh -ec '
+            python apps/backend/manage.py check
+            python apps/backend/manage.py makemigrations --check --dry-run
+            pytest
+          '
       - name: Check web
         working-directory: apps/web
         run: |
