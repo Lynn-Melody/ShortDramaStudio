@@ -59,6 +59,7 @@ test('developer instructions order local validation, draft PR, risk-based review
   assert.match(development, /仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交/);
   assert.match(development, /git merge-tree --write-tree.*命令成功退出.*结果树与.*git rev-parse.*一致时，原审核继续有效/);
   assert.match(development, /自动合并冲突或结果树不一致时，按下面的规则复核增量/);
+  assert.match(steps[3][2], /PR 已开启自动合并时，推送前先运行 `gh pr merge <PR编号> --disable-auto`/);
   assert.match(development, /原审核者复核 `git diff "<已审提交号>\.\.<新提交号>"`/);
   assert.match(development, /headSha.*送审提交一致.*conclusion.*success/);
   assert.match(development, /--event pull_request/);
@@ -74,16 +75,17 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(review, /注明审核时该提交 PR CI 的状态/);
   assert.match(review, /无法取得指定提交，报告缺项/);
   assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*作者通知时可随时处理.*非草稿 PR/);
-  assert.match(merge, /最新提交号与风险级别要求的审核证据一致.*PR CI 通过/);
+  assert.match(merge, /分支保护：只能通过 PR 合入，`quick` 和 `verify` 必须通过，管理员同样受限/);
+  assert.match(merge, /最新提交号与风险级别要求的审核证据一致.*前置 PR 已合并/);
   assert.match(merge, /Update branch 更新分支.*有冲突时交回作者/);
-  assert.match(merge, /Merge Queue/);
   const workflow = readFileSync(resolve(__dirname, '..', '.github/workflows/development.yml'), 'utf8');
   assert.match(workflow, /fetch-depth: 2\s+- name: Record tested PR merge parents\s+if: github.event_name == 'pull_request'/);
   assert.match(workflow, /PR_BASE: \$\{\{ github.event.pull_request.base.sha \}\}/);
   assert.match(workflow, /PR_HEAD: \$\{\{ github.event.pull_request.head.sha \}\}/);
   assert.match(workflow, /printf 'Tested merge parents: %s\\n' "\$parents"\s+test "\$parents" = "\$PR_BASE \$PR_HEAD"/);
   assert.match(merge, /Record tested PR merge parents.*父提交应依次是当前 `main` 和 PR 最新提交/);
-  assert.match(merge, /--match-head-commit <已核验提交号>/);
+  assert.match(merge, /gh pr merge <PR编号> --auto --match-head-commit <已核验提交号>/);
+  assert.match(merge, /作者需要推送时，先运行 `gh pr merge <PR编号> --disable-auto`/);
 });
 
 test('frontend CI invokes Corepack from the workspace that declares pnpm', () => {
