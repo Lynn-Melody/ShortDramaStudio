@@ -24,33 +24,45 @@ for (const file of ['docs/production-flow.md', 'docs/product-design.md']) {
 test('collaboration guide delegates production rules to the dedicated document', () => {
   const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
   assert.ok(text.includes('docs/production-flow.md'));
-  assert.ok(text.includes('Git commit'));
-  assert.ok(text.includes('测试和验证全部通过'));
   assert.ok(!text.includes('## 分集制作'));
   assert.ok(!text.includes('首帧'));
 });
 
-test('collaboration guide assigns each first-release task to one seat', () => {
-  const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
-  const seats = [...text.matchAll(/^\|\s*([^|]+?)\s*\|\s*(T\d{2}(?:、T\d{2})*)\s*\|/gm)];
-  const taskIds = seats.flatMap(([, , tasks]) => tasks.split('、'));
-
-  assert.equal(seats.length, 7);
-  assert.deepEqual(taskIds.sort(), ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10']);
+test('agent guide can be used independently of the coordination ledger', () => {
+  const guide = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
+  const ledger = readFileSync(resolve(__dirname, 'development-assignments.md'), 'utf8');
+  assert.match(ledger, /^# 首版开发分工/m);
+  assert.match(ledger, /由协作协调者维护/);
+  assert.doesNotMatch(guide, /首版开发分工|development-assignments\.md|\bT\d{2}\b/);
+  assert.match(guide, /目标、范围、验收标准和工作分支/);
+  assert.match(guide, /git status --short --branch/);
 });
 
-test('collaboration guide puts branch CI, independent review and PR handoff before scheduled merges', () => {
+test('developer instructions order local validation, commit, branch CI, dual review and PR handoff', () => {
   const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
-  const flow = text.split('## 开发、审核与合并')[1];
-  assert.ok(flow);
-  const steps = [...flow.matchAll(/^\d+\. \*\*([^*]+)\*\* (.+)$/gm)];
+  const development = text.split('## 开发 Agent')[1]?.split('## 审核 Agent')[0];
+  assert.ok(development);
+  const steps = [...development.matchAll(/^\d+\. \*\*([^*]+)\*\* (.+)$/gm)];
   assert.deepEqual(steps.map(([, label]) => label), [
-    '本地开发。', '分支 CI。', '任务双审。', '开 PR 交接。', '定期巡检与合并。',
+    '开发和提交。', '验证完整任务。', '送审。', '开 PR。',
   ]);
-  assert.match(steps[2][2], /分支 CI 通过后.*一个 GPT 会话和一个 Claude 会话.*同一个最终提交/);
+  assert.match(steps[0][2], /编写或更新相关测试、通过对应验证，再创建一个 Git commit/);
+  assert.match(steps[1][2], /任务分支推送.*最终提交号查找对应的 GitHub Actions 分支 CI/);
+  assert.match(steps[2][2], /分支 CI 通过后.*一个 GPT 会话和一个 Claude 会话.*独立只读审核/);
   assert.match(steps[3][2], /双审通过后.*已审核的提交号.*提交 PR 即完成交接/);
-  assert.match(steps[4][2], /集成与合并负责人由定时任务触发.*PR 集成 CI 通过.*锁定已核对的提交号/);
-  assert.doesNotMatch(text, /作者通知 T10|T10 收到通知/);
+  assert.match(development, /headSha.*送审提交一致.*conclusion.*success/);
+});
+
+test('reviewer and merge instructions handle missing proof and verify the exact commit', () => {
+  const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
+  const [review, merge] = text.split('## 审核 Agent')[1].split('## 集成与合并负责人');
+  assert.match(review, /git diff "<基线提交号>\.\.\.<待审提交号>"/);
+  assert.match(review, /只读，各自给出独立结论/);
+  assert.match(review, /审核会话交付 `通过` 或 `阻塞`，附实际审核的提交号/);
+  assert.match(review, /无法取得指定提交或同一提交的成功 CI，报告缺项/);
+  assert.match(merge, /定时巡检.*非草稿 PR/);
+  assert.match(merge, /最新提交号与两份审核证据一致.*PR 集成 CI 通过/);
+  assert.match(merge, /--match-head-commit <已审提交号>/);
 });
 
 test('local documentation links resolve after moving the workflow', () => {
