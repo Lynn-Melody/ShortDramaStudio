@@ -38,20 +38,28 @@ test('agent guide can be used independently of the coordination ledger', () => {
   assert.match(guide, /git status --short --branch/);
 });
 
-test('developer instructions order local validation, commit, branch CI, dual review and PR handoff', () => {
+test('developer instructions order local validation, draft PR, risk-based review and handoff', () => {
   const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
+  const risk = text.split('## 风险级别')[1]?.split('## 开发 Agent')[0];
+  assert.ok(risk);
+  assert.match(risk, /\*\*高风险\*\*.*调度核心.*数据库迁移.*`contracts\/`.*`\.github\/`.*一个 GPT 会话和一个 Claude 会话/);
+  assert.match(risk, /\*\*标准\*\*.*一位审核者，使用与作者不同的模型/);
   const development = text.split('## 开发 Agent')[1]?.split('## 审核 Agent')[0];
   assert.ok(development);
   const steps = [...development.matchAll(/^\d+\. \*\*([^*]+)\*\* (.+)$/gm)];
   assert.deepEqual(steps.map(([, label]) => label), [
-    '开发和提交。', '验证完整任务。', '送审。', '开 PR。',
+    '开发和提交。', '验证并开草稿 PR。', '送审。', '转为正式 PR。',
   ]);
   assert.match(steps[0][2], /编写或更新相关测试、通过对应验证，再创建一个 Git commit/);
   assert.match(steps[0][2], /公开契约和前端类型，请工作台 Agent 核对页面调用/);
-  assert.match(steps[1][2], /任务分支推送.*最终提交号查找对应的 GitHub Actions 分支 CI/);
-  assert.match(steps[2][2], /分支 CI 通过后.*一个 GPT 会话和一个 Claude 会话.*独立只读审核/);
-  assert.match(steps[3][2], /双审通过后.*已审核的提交号.*提交 PR 即完成交接/);
+  assert.match(steps[1][2], /立即向 `main` 开草稿 PR.*风险级别.*PR CI 是唯一的 CI 门禁/);
+  assert.match(steps[2][2], /无需等待 PR CI；审核结论只在同一提交的 PR CI 通过后生效/);
+  assert.match(steps[2][2], /提出该意见的审核者复核修复增量/);
+  assert.match(steps[3][2], /审核通过且该提交的 PR CI 通过后.*已审核的提交号.*标记为可审阅，即完成交接/);
+  assert.match(development, /合并 `main` 的合并提交.*父提交包含已审提交.*git show --cc.*原审核继续有效/);
+  assert.match(development, /原审核者复核 `git diff "<已审提交号>\.\.<新提交号>"`/);
   assert.match(development, /headSha.*送审提交一致.*conclusion.*success/);
+  assert.match(development, /--event pull_request/);
 });
 
 test('reviewer and merge instructions handle missing proof and verify the exact commit', () => {
@@ -60,13 +68,20 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(review, /git diff "<基线提交号>\.\.\.<待审提交号>"/);
   assert.match(review, /只读，各自给出独立结论/);
   assert.match(review, /审核会话交付 `通过` 或 `阻塞`，附实际审核的提交号/);
-  assert.match(review, /无法取得指定提交或同一提交的成功 CI，报告缺项/);
-  assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*非草稿 PR/);
-  assert.match(merge, /最新提交号与两份审核证据一致.*PR 集成 CI 通过/);
+  assert.match(review, /git diff "<上次送审提交号>\.\.<当前提交号>"/);
+  assert.match(review, /注明审核时该提交 PR CI 的状态/);
+  assert.match(review, /无法取得指定提交，报告缺项/);
+  assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*作者通知时可随时处理.*非草稿 PR/);
+  assert.match(merge, /最新提交号与风险级别要求的审核证据一致.*PR CI 通过/);
+  assert.match(merge, /Update branch 更新分支.*有冲突时交回作者/);
+  assert.match(merge, /Merge Queue/);
   const workflow = readFileSync(resolve(__dirname, '..', '.github/workflows/development.yml'), 'utf8');
-  assert.match(workflow, /name: Record tested PR merge parents\r?\n +if: github.event_name == 'pull_request'\r?\n +run: \|\r?\n +git show -s --format='Tested merge parents: %P' HEAD/);
-  assert.match(merge, /Record tested PR merge parents.*父提交应依次是当前 `main` 和已审核的 PR 提交/);
-  assert.match(merge, /--match-head-commit <已审提交号>/);
+  assert.match(workflow, /fetch-depth: 2\s+- name: Record tested PR merge parents\s+if: github.event_name == 'pull_request'/);
+  assert.match(workflow, /PR_BASE: \$\{\{ github.event.pull_request.base.sha \}\}/);
+  assert.match(workflow, /PR_HEAD: \$\{\{ github.event.pull_request.head.sha \}\}/);
+  assert.match(workflow, /printf 'Tested merge parents: %s\\n' "\$parents"\s+test "\$parents" = "\$PR_BASE \$PR_HEAD"/);
+  assert.match(merge, /Record tested PR merge parents.*父提交应依次是当前 `main` 和 PR 最新提交/);
+  assert.match(merge, /--match-head-commit <已核验提交号>/);
 });
 
 test('frontend CI invokes Corepack from the workspace that declares pnpm', () => {
@@ -85,24 +100,39 @@ test('frontend CI invokes Corepack from the workspace that declares pnpm', () =>
   assert.match(readme, /Set-Location apps\/web\r?\npnpm types:generate/);
 });
 
-test('branch CI runs quick checks and PR CI integrates with a reusable MinIO image', () => {
+test('PR CI runs cached quick checks and a right-sized integration stack in parallel', () => {
   const root = resolve(__dirname, '..');
   const workflow = readFileSync(resolve(root, '.github/workflows/development.yml'), 'utf8');
-  const [, quick, verify] = workflow.split(/^ {2}(?:quick|verify):\s*$/m);
-  assert.match(quick, /if: github.event_name == 'push'/);
+  const [triggers, quick, verify] = workflow.split(/^ {2}(?:quick|verify):\s*$/m);
+  assert.match(triggers, /^ {2}pull_request:\s*$/m);
+  assert.match(triggers, /^ {2}merge_group:\s*$/m);
+  assert.match(triggers, /push:\s+branches: \[main\]/);
+  assert.match(triggers, /cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}/);
+  assert.doesNotMatch(quick, /if: github.event_name/);
   assert.match(quick, /image: postgres:18/);
-  assert.match(quick, /docker build --target development --file infra\/python.Dockerfile/);
-  assert.match(quick, /docker run --rm --network host.*STUDIO_DB_HOST=127\.0\.0\.1/);
+  assert.match(quick, /git diff --check HEAD\^1 HEAD/);
+  assert.match(quick, /docker\/bake-action@v6[\s\S]*?targets: api[\s\S]*?api\.cache-from=type=gha,scope=python/);
+  assert.match(quick, /docker run --rm --network host.*STUDIO_DB_HOST=127\.0\.0\.1 short-drama-studio-python:dev/);
   assert.match(quick, /^ {12}pytest\s*$/m);
+  assert.match(quick, /key: pnpm-.*hashFiles\('apps\/web\/pnpm-lock.yaml'\)/);
   assert.doesNotMatch(quick, /docker compose|test:e2e/);
-  assert.match(verify, /name: Start development stack\s+if: github.event_name == 'pull_request'/);
+  assert.ok(verify.includes(String.raw`full='^(compose\.yaml|infra/|apps/(agents|render)/|workflows/n8n/|pyproject\.toml|uv\.lock|\.github/workflows/)'`));
+  assert.match(verify, /services=postgres minio api web/);
   assert.match(verify, /key: studio-minio-v1-.*hashFiles\('infra\/minio.Dockerfile'\)/);
   assert.match(verify, /docker image load -i/);
-  assert.match(verify, /docker compose build api render web\s+docker compose up --no-build/);
-  assert.match(verify, /pnpm test:e2e/);
+  assert.match(verify, /targets: \$\{\{ steps.stack.outputs.targets \}\}/);
+  for (const target of ['api', 'render', 'web']) {
+    assert.match(verify, new RegExp(String.raw`${target}\.cache-to=type=gha,scope=`));
+  }
+  assert.match(verify, /name: Start development stack\s+if: github.event_name != 'push'\s+run: docker compose up --no-build --wait/);
+  assert.match(verify, /PLAYWRIGHT_CHANNEL: chrome[\s\S]*?pnpm test:e2e/);
   const compose = readFileSync(resolve(root, 'compose.yaml'), 'utf8');
-  assert.match(compose, /^  minio:\s+image: short-drama-studio-minio:dev$/m);
+  for (const service of ['minio', 'render', 'web']) {
+    assert.match(compose, new RegExp(String.raw`^  ${service}:\s+image: short-drama-studio-${service}:dev$`, 'm'));
+  }
   assert.match(verify, /docker image save .* short-drama-studio-minio:dev/);
+  const playwright = readFileSync(resolve(root, 'apps/web/playwright.config.ts'), 'utf8');
+  assert.match(playwright, /channel: process.env.PLAYWRIGHT_CHANNEL/);
 });
 
 test('local documentation links resolve after moving the workflow', () => {

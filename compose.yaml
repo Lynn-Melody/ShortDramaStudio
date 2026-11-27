@@ -113,6 +113,7 @@ services:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8010/internal/v1/health', timeout=3).close()"]
 
   render:
+    image: short-drama-studio-render:dev
     build:
       context: .
       dockerfile: infra/python.Dockerfile
@@ -156,6 +157,7 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5678/healthz/readiness').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
 
   web:
+    image: short-drama-studio-web:dev
     build:
       context: .
       dockerfile: infra/web.Dockerfile
