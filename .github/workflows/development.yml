@@ -11,6 +11,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Record tested PR merge parents
+        if: github.event_name == 'pull_request'
+        run: |
+          git show -s --format='Tested merge parents: %P' HEAD
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -19,6 +23,7 @@ jobs:
       - name: Check Django, PostgreSQL and OpenAPI
         run: |
           docker compose exec -T api python apps/backend/manage.py check
+          docker compose exec -T api python apps/backend/manage.py makemigrations --check --dry-run
           docker compose exec -T api pytest
           docker compose run --rm storage-init
       - name: Check docs and prototype

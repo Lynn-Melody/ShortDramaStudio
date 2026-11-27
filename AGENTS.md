@@ -43,6 +43,6 @@ gh run view "<CI 运行 ID>" --json headSha,status,conclusion,url
 
 北京时间每天 09:00–23:00，每 30 分钟巡检一次，09:00 首轮，22:30 末轮。查看指向 `main` 的非草稿 PR，按依赖顺序处理。用 `gh pr list --base main --state open` 或仓库的 Pull Requests 页面找候选 PR。影响下游开工的 PR 可以提前手动巡检；没有符合条件的 PR 时，结束本轮。
 
-- 核对 PR 最新提交号与两份审核证据一致、阻塞意见已解决、PR 集成 CI 通过，以及前置 PR 已合并。用 `gh pr view <PR编号> --json headRefOid` 和 `gh pr checks <PR编号>` 查询，或直接查看 GitHub 页面。缺少任何一项就留待后续巡检。
+- 核对 PR 最新提交号与两份审核证据一致、阻塞意见已解决、PR 集成 CI 通过，以及前置 PR 已合并。用 `gh pr view <PR编号> --json headRefOid` 和 `gh pr checks <PR编号>` 查询，或直接查看 GitHub 页面。查看 CI 的 `Record tested PR merge parents` 日志，两个父提交应依次是当前 `main` 和已审核的 PR 提交。若 `main` 已前进，等作者更新分支并补齐新提交的检查和审核记录。缺少任何一项就留待后续巡检。
 - 通过 GitHub 合并，锁定核验过的提交号。使用 CLI 时附上 `--match-head-commit <已审提交号>`。如果合并前提交发生变更，重新核对新提交的 CI 和审核记录。
 - 记录合入结果。跨模块改动在集成结果上用两集四镜样例验收，覆盖项目创建到交付、暂停继续、Worker 重启和可恢复失败。

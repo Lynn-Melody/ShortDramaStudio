@@ -103,6 +103,37 @@ def run_in_connection(function):
         connections.close_all()
 
 
+def test_concurrent_schedule_replays_initialize_the_same_root_once():
+    initializations = []
+
+    class CountingRoot(BatchTask):
+        def on_init(self):
+            initializations.append(self.input)
+            super().on_init()
+
+    scheduler = Scheduler(TaskRegistry(CountingRoot))
+    schedule_id = uuid4()
+    payload = {"seed": 7}
+    barrier = Barrier(2, timeout=5)
+
+    def create_schedule():
+        barrier.wait()
+        return scheduler.create_schedule(CountingRoot, payload, schedule_id=schedule_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(run_in_connection, create_schedule)
+        replay = pool.submit(run_in_connection, create_schedule)
+        schedule, root = first.result(timeout=10)
+        replay_schedule, replay_root = replay.result(timeout=10)
+
+    assert replay_schedule.id == schedule.id == schedule_id
+    assert replay_root.id == root.id
+    assert root.slots.count() == 3 and initializations == [payload]
+    with pytest.raises(StateConflict, match="different root definition"):
+        scheduler.create_schedule(CountingRoot, {"seed": 8}, schedule_id=schedule_id)
+    assert initializations == [payload]
+
+
 def test_workflow_of_local_tasks_resumes_with_fixed_slots_and_equal_progress(scheduler):
     schedule, task = scheduler.create_schedule(BatchTask, {"seed": 7, "skip_right": True})
     worker = Worker(scheduler)
@@ -492,9 +523,11 @@ def test_late_workflow_success_only_applies_before_next_execution(scheduler, cla
     assert not scheduler.workflow_is_current(execution.id)
     assert scheduler.submit_workflow_result(execution.id, Failed("provider_busy")) == "expired"
     task.refresh_from_db()
-    assert task.state == TaskState.WAITING and task.retry_at is not None
+    assert task.state == TaskState.TIMED_OUT and task.blocked_reason == PROVIDER_CHECK
+    assert task.retry_at is None
     assert scheduler.claim_next(schedule_id=schedule.id) is None
     if claim_retry:
+        scheduler.confirm_provider_jobs_inactive(execution.id, jobs={})
         allow_retry(task)
         retry = scheduler.claim_next(schedule_id=schedule.id)
         assert retry.id != execution.id and retry.task_id == task.id
@@ -511,6 +544,7 @@ def test_retry_and_late_success_are_serialized(scheduler):
     schedule, task, execution = make_external(scheduler)
     scheduler.accept_workflow(execution.id)
     expire(scheduler, execution)
+    scheduler.confirm_provider_jobs_inactive(execution.id, jobs={})
     allow_retry(task)
     barrier = Barrier(2, timeout=5)
 
@@ -580,6 +614,30 @@ def test_business_failure_blocks_immediately_and_provider_job_blocks_uncertain_r
     scheduler.confirm_provider_jobs_inactive(execution.id, jobs=execution.provider_jobs)
     task.refresh_from_db()
     assert task.blocked_reason == "" and task.retry_at is not None
+
+
+def test_timeout_blocks_retry_while_provider_job_registration_is_in_flight(scheduler):
+    schedule, task, execution = make_external(scheduler)
+    scheduler.accept_workflow(execution.id)
+    assert scheduler.workflow_is_current(execution.id)
+    expire(scheduler, execution)
+
+    task.refresh_from_db()
+    assert task.state == TaskState.TIMED_OUT and task.blocked_reason == PROVIDER_CHECK
+    assert scheduler.claim_next(schedule_id=schedule.id) is None
+    with pytest.raises(StateConflict, match="Verify"):
+        scheduler.retry(schedule.id, task.id)
+
+    scheduler.register_provider_job(execution.id, "render", "example", "late-job-id")
+    execution.refresh_from_db()
+    assert execution.provider_jobs == {"render": {"provider": "example", "job_id": "late-job-id"}}
+    with pytest.raises(StateConflict, match="no longer match"):
+        scheduler.confirm_provider_jobs_inactive(execution.id, jobs={})
+    assert scheduler.claim_next(schedule_id=schedule.id) is None
+
+    scheduler.confirm_provider_jobs_inactive(execution.id, jobs=execution.provider_jobs)
+    allow_retry(task)
+    assert scheduler.claim_next(schedule_id=schedule.id).id != execution.id
 
 
 def test_worker_command_uses_registered_task_version(scheduler, settings):

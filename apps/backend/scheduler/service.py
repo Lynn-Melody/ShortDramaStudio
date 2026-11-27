@@ -145,14 +145,22 @@ class Scheduler:
         self.registry = registry
 
     def create_schedule(self, root_class, input, *, schedule_id=None):
-        """Create the disabled schedule and root. May join the domain project's transaction."""
+        """Create the disabled schedule and root, or return a matching replay."""
         self._require_registered(root_class)
         input = _json_object(input)
-        definition = _initialize(root_class, input)
         with transaction.atomic():
-            kwargs = {} if schedule_id is None else {"id": schedule_id}
-            schedule = Schedule.objects.create(definition_version=root_class.definition_version, **kwargs)
-            root = _new_task(schedule, root_class, input, definition)
+            schedule, created = Schedule.objects.get_or_create(
+                pk=uuid4() if schedule_id is None else schedule_id,
+                defaults={"definition_version": root_class.definition_version},
+            )
+            if created:
+                root = _new_task(schedule, root_class, input, _initialize(root_class, input))
+            else:
+                root = Task.objects.get(schedule=schedule, parent__isnull=True)
+                if (root.task_type, root.definition_version, root.input) != (
+                    root_class.task_type, root_class.definition_version, input,
+                ):
+                    raise StateConflict("Schedule ID already belongs to a different root definition")
         return schedule, root
 
     def _require_registered(self, task_class):
@@ -357,7 +365,9 @@ class Scheduler:
         policy = self.registry.resolve(task.task_type, task.definition_version).retry_policy
         task.state = TaskState.TIMED_OUT if expired else TaskState.WAITING
         task.blocked_reason, task.retry_at = ("" if expired else code), None
-        if retryable and execution.provider_jobs and execution.provider_jobs_checked_at is None:
+        # A timed-out workflow might have sent a provider request whose job ID has not arrived yet.
+        needs_provider_check = execution.provider_jobs or (expired and execution.workflow_accepted_at is not None)
+        if retryable and needs_provider_check and execution.provider_jobs_checked_at is None:
             task.blocked_reason = PROVIDER_CHECK
         elif retryable and task.attempt_count < policy.max_attempts:
             task.state = TaskState.WAITING
@@ -386,7 +396,7 @@ class Scheduler:
         Schedule.objects.select_for_update().get(pk=schedule_id)
         task = Task.objects.get(pk=task_id, schedule_id=schedule_id)
         if task.blocked_reason == PROVIDER_CHECK:
-            raise StateConflict("Verify the recorded provider jobs before retrying")
+            raise StateConflict("Verify the workflow and provider activity before retrying")
         if task.state != TaskState.TIMED_OUT and not (task.state == TaskState.WAITING and task.blocked_reason):
             raise StateConflict("Only failed or timed-out tasks can be retried")
         task.state, task.blocked_reason, task.retry_at, task.attempt_count = TaskState.WAITING, "", None, 0
@@ -659,7 +669,7 @@ class Scheduler:
 
     @transaction.atomic
     def confirm_provider_jobs_inactive(self, execution_id, *, jobs):
-        """T03 calls after checking that the exact recorded provider jobs cannot produce a result."""
+        """Confirm that the workflow and exact provider-job snapshot cannot still produce results."""
         execution = self._locked_execution(execution_id)
         if not self._current(execution) or execution.task.blocked_reason != PROVIDER_CHECK or jobs != execution.provider_jobs:
             raise StateConflict("Provider jobs no longer match the blocked execution")

@@ -62,6 +62,9 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(review, /无法取得指定提交或同一提交的成功 CI，报告缺项/);
   assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*非草稿 PR/);
   assert.match(merge, /最新提交号与两份审核证据一致.*PR 集成 CI 通过/);
+  const workflow = readFileSync(resolve(__dirname, '..', '.github/workflows/development.yml'), 'utf8');
+  assert.match(workflow, /name: Record tested PR merge parents\r?\n +if: github.event_name == 'pull_request'\r?\n +run: \|\r?\n +git show -s --format='Tested merge parents: %P' HEAD/);
+  assert.match(merge, /Record tested PR merge parents.*父提交应依次是当前 `main` 和已审核的 PR 提交/);
   assert.match(merge, /--match-head-commit <已审提交号>/);
 });
 
@@ -75,6 +78,10 @@ test('frontend CI invokes Corepack from the workspace that declares pnpm', () =>
   for (const step of pnpmSteps) {
     assert.match(step, /^\s+working-directory: apps\/web\s*$/m);
   }
+  const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
+  assert.doesNotMatch(readme, /pnpm --dir apps\/web/);
+  assert.match(readme, /Set-Location apps\/web\r?\ncorepack enable\r?\npnpm install --frozen-lockfile/);
+  assert.match(readme, /Set-Location apps\/web\r?\npnpm types:generate/);
 });
 
 test('local documentation links resolve after moving the workflow', () => {
@@ -110,9 +117,11 @@ test('technical design closes the reviewed scheduling gaps', () => {
   assert.ok(!text.includes('return self.finish()'));
 });
 
-test('product design exposes manual retry for blocked or timed-out tasks', () => {
+test('product design exposes retry only when a blocked or timed-out task can retry', () => {
   const text = readFileSync(resolve(__dirname, 'product-design.md'), 'utf8');
-  assert.match(text, /失败被阻塞或已超时时显示「重试」/);
+  assert.match(text, /失败被阻塞或已超时且允许手动重试时显示「重试」/);
+  assert.match(text, /等待供应商核查时显示「待核查供应商任务」/);
+  assert.match(text, /等待供应商核查、正常等待、运行或完成的任务隐藏「重试」/);
   assert.match(text, /点击「重试」/);
   assert.ok(text.includes('自动重试'));
 });

@@ -32,25 +32,35 @@ docker compose ps
 
 本机开发使用 Python 3.14、uv、Node.js 24 和 pnpm 11.25.0。建议先启动 Compose，也可使用 `docker compose up -d --wait postgres` 单独启动测试数据库。
 
+在仓库根目录执行后端、文档和原型检查。
+
 ```powershell
 uv sync --locked
-pnpm --dir apps/web install --frozen-lockfile
 node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
 uv run --locked python apps/backend/manage.py check
 uv run --locked pytest
-pnpm --dir apps/web types:check
-pnpm --dir apps/web test
-pnpm --dir apps/web build
-pnpm --dir apps/web exec playwright install chromium
-pnpm --dir apps/web test:e2e
 ```
 
-Playwright 访问运行中的工作台和真实 Django API。如果只启动了 PostgreSQL，在两个终端分别运行 `uv run --locked python apps/backend/manage.py runserver` 和 `pnpm --dir apps/web dev`。本地数据库设置默认连接 Compose 的 `studio` 库。如修改了开发密码，请在本机后端或 pytest 进程中设置对应的 `STUDIO_DB_PASSWORD`。
+在 `apps/web` 运行前端命令，让 Corepack 读取该目录的 pnpm 版本声明。已安装指定版本 pnpm 的环境可以直接运行这些 pnpm 命令。
 
-修改后端 Serializer 或路由后，在仓库根目录重新生成并提交两份 OpenAPI 3.1 契约和前端类型：
+```powershell
+Set-Location apps/web
+corepack enable
+pnpm install --frozen-lockfile
+pnpm types:check
+pnpm test
+pnpm build
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+Playwright 访问运行中的工作台和真实 Django API。如果只启动了 PostgreSQL，先在一个终端从仓库根目录运行 `uv run --locked python apps/backend/manage.py runserver`，再在另一终端进入 `apps/web` 运行 `pnpm dev`。本地数据库设置默认连接 Compose 的 `studio` 库。如修改了开发密码，请在本机后端或 pytest 进程中设置对应的 `STUDIO_DB_PASSWORD`。
+
+修改后端 Serializer 或路由后，从仓库根目录生成两份 OpenAPI 3.1 契约，再进入 `apps/web` 生成前端类型。将生成的文件一起提交。
 
 ```powershell
 uv run --locked python apps/backend/manage.py spectacular --urlconf studio.public_urls --file contracts/public.yaml --validate --fail-on-warn
 uv run --locked python apps/backend/manage.py spectacular --urlconf studio.internal_urls --file contracts/internal.yaml --validate --fail-on-warn
-pnpm --dir apps/web types:generate
+Set-Location apps/web
+pnpm types:generate
 ```
