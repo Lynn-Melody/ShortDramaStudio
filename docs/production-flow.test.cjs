@@ -65,6 +65,18 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(merge, /--match-head-commit <已审提交号>/);
 });
 
+test('frontend CI invokes Corepack from the workspace that declares pnpm', () => {
+  const root = resolve(__dirname, '..');
+  const manifest = JSON.parse(readFileSync(resolve(root, 'apps/web/package.json'), 'utf8'));
+  const workflow = readFileSync(resolve(root, '.github/workflows/development.yml'), 'utf8');
+  const pnpmSteps = workflow.split(/^ {6}- /m).filter(step => /^\s+pnpm /m.test(step));
+  assert.match(manifest.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
+  assert.ok(pnpmSteps.length > 0);
+  for (const step of pnpmSteps) {
+    assert.match(step, /^\s+working-directory: apps\/web\s*$/m);
+  }
+});
+
 test('local documentation links resolve after moving the workflow', () => {
   for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md', 'docs/scheduler-integration.md']) {
     const path = resolve(__dirname, '..', file);

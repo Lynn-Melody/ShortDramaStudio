@@ -21,16 +21,18 @@ jobs:
           docker compose exec -T api python apps/backend/manage.py check
           docker compose exec -T api pytest
           docker compose run --rm storage-init
-      - name: Check docs, prototype and web
+      - name: Check docs and prototype
+        run: node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
+      - name: Check web
+        working-directory: apps/web
         run: |
-          node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
           corepack enable
-          pnpm --dir apps/web install --frozen-lockfile
-          pnpm --dir apps/web types:check
-          pnpm --dir apps/web test
-          pnpm --dir apps/web build
-          pnpm --dir apps/web exec playwright install --with-deps chromium
-          pnpm --dir apps/web test:e2e
+          pnpm install --frozen-lockfile
+          pnpm types:check
+          pnpm test
+          pnpm build
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:e2e
       - name: Show service logs
         if: failure()
         run: docker compose logs --no-color
