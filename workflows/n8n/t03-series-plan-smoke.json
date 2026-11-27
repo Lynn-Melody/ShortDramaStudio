@@ -1,0 +1,164 @@
+{
+  "id": "t03SeriesPlanSmoke",
+  "name": "T03 series plan integration sample",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "t03-series-plan-smoke",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d5274233-b0f9-461a-805c-fec8c5c01cee",
+      "name": "Dispatch",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "27dd6da4-99b6-497e-b22d-42f708442354",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "t03DispatchHeader",
+          "name": "T03 webhook dispatch"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/internal/v1/executions/{{ $json.body.executionId }}/accept",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (({ projectId, taskId, executionId, schemaVersion }) => ({ projectId, taskId, executionId, schemaVersion }))($json.body) }}",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "id": "3509d8a6-7839-4f1c-965f-922b82a989b8",
+      "name": "Accept",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "t03PlatformHeader",
+          "name": "T03 platform workflow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: $json.status } }}",
+        "options": {}
+      },
+      "id": "44e2aaa8-6f0a-42f9-8246-64c5e502def9",
+      "name": "Acknowledge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const acceptance = $('Accept').first().json;\nif (acceptance.status !== 'accepted') return [];\nif (acceptance.input.idea !== 'A ghost train returns.') {\n  throw new Error('Expected the fixed T03 smoke test input');\n}\nconst { projectId, taskId, executionId, schemaVersion } = $('Dispatch').first().json.body;\nconst result = {\n  \"data\": {\n    \"title\": \"Night Service\",\n    \"world\": \"An abandoned subway line reopens after midnight.\",\n    \"visualGuide\": \"Cool fluorescent light and fixed camera.\",\n    \"characters\": [\n      {\n        \"name\": \"Mei\",\n        \"profile\": \"A pragmatic transit engineer who investigates unexplained events.\"\n      }\n    ],\n    \"episodes\": [\n      {\n        \"title\": \"Last Train\",\n        \"outline\": \"Mei discovers a train that should not exist.\"\n      }\n    ],\n    \"assets\": [\n      {\n        \"assetKey\": \"station\",\n        \"kind\": \"scene\",\n        \"title\": \"Station\",\n        \"description\": \"A quiet underground station\"\n      },\n      {\n        \"assetKey\": \"mei\",\n        \"kind\": \"character\",\n        \"title\": \"Mei\",\n        \"description\": \"Transit engineer in a grey jacket\"\n      },\n      {\n        \"assetKey\": \"pass\",\n        \"kind\": \"prop\",\n        \"title\": \"Transit pass\",\n        \"description\": \"Worn green card\"\n      }\n    ]\n  },\n  \"outputs\": []\n};\nreturn [{ json: { projectId, taskId, executionId, schemaVersion, outcome: 'completed', ...result } }];"
+      },
+      "id": "8e91b81b-cc5f-4f77-8085-8a4db69e3766",
+      "name": "Fixed Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/internal/v1/executions/{{ $json.executionId }}/result",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "id": "be704561-72d2-4aba-834d-06c0ffe49463",
+      "name": "Submit Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "t03PlatformHeader",
+          "name": "T03 platform workflow"
+        }
+      },
+      "retryOnFail": true
+    }
+  ],
+  "connections": {
+    "Dispatch": {
+      "main": [
+        [
+          {
+            "node": "Accept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge": {
+      "main": [
+        [
+          {
+            "node": "Fixed Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixed Plan": {
+      "main": [
+        [
+          {
+            "node": "Submit Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

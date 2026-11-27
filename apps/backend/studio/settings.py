@@ -1,4 +1,7 @@
+import json
 import os
+
+from django.core.exceptions import ImproperlyConfigured
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-studio-development-only")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
@@ -63,6 +66,17 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "OAS_VERSION": "3.1.0",
 }
+
+WORKFLOW_SERVICE_TOKEN = os.getenv("STUDIO_WORKFLOW_SERVICE_TOKEN", "")
+WORKFLOW_VERIFIER_TOKEN = os.getenv("STUDIO_WORKFLOW_VERIFIER_TOKEN", "")
+N8N_DISPATCH_TOKEN = os.getenv("STUDIO_N8N_DISPATCH_TOKEN", "")
+try:
+    N8N_WEBHOOKS = json.loads(os.getenv("STUDIO_N8N_WEBHOOKS") or "{}")
+except ValueError as exc:
+    raise ImproperlyConfigured("STUDIO_N8N_WEBHOOKS must be a JSON object") from exc
+if not isinstance(N8N_WEBHOOKS, dict):
+    raise ImproperlyConfigured("STUDIO_N8N_WEBHOOKS must map workflow names to webhook URLs")
+SCHEDULER_WORKFLOW_DISPATCHER = "studio.n8n.dispatch_workflow" if N8N_WEBHOOKS else None
 
 SCHEDULER_TASK_CLASSES = (
     "production.tasks.ShortDrama",

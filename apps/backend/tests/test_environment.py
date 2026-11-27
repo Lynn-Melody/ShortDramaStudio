@@ -35,13 +35,20 @@ def test_readiness_and_worker_use_postgresql_18(client):
     call_command("run_scheduler", check=True)
 
 
-@pytest.mark.parametrize(("kind", "path"), [
-    ("public", "/api/v1/health"),
-    ("internal", "/internal/v1/health"),
+@pytest.mark.parametrize(("kind", "paths"), [
+    ("public", {"/api/v1/health"}),
+    ("internal", {
+        "/internal/v1/health",
+        "/internal/v1/executions/{executionId}/accept",
+        "/internal/v1/executions/{executionId}/status",
+        "/internal/v1/executions/{executionId}/result",
+        "/internal/v1/executions/{executionId}/provider-jobs/{stepKey}",
+        "/internal/v1/executions/{executionId}/provider-check",
+    }),
 ])
-def test_openapi_contract_is_current(kind, path):
+def test_openapi_contract_is_current(kind, paths):
     schema = SchemaGenerator(urlconf=f"studio.{kind}_urls").get_schema(public=True)
     committed = (CONTRACTS_DIR / f"{kind}.yaml").read_bytes().replace(b"\r\n", b"\n")
     assert committed == OpenApiYamlRenderer().render(schema)
     assert yaml.safe_load(committed)["openapi"] == "3.1.0"
-    assert set(schema["paths"]) == {path}
+    assert set(schema["paths"]) == paths

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1",
+  "dispatch": {
+    "idempotencyKey": "00000000-0000-4000-8000-000000000003",
+    "body": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "taskType": "series_plan",
+      "deadlineAt": "2026-11-28T12:00:00Z"
+    }
+  },
+  "accept": {
+    "body": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003"
+    },
+    "response": {
+      "status": "accepted",
+      "input": {
+        "idea": "A ghost train returns."
+      }
+    },
+    "repeatResponse": {
+      "status": "already_accepted"
+    }
+  },
+  "status": {
+    "query": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1"
+    },
+    "response": {
+      "active": true
+    }
+  },
+  "completed": {
+    "body": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "outcome": "completed",
+      "data": {
+        "title": "Night Service",
+        "world": "An abandoned subway line reopens after midnight.",
+        "visualGuide": "Cool fluorescent light and fixed camera.",
+        "characters": [
+          {
+            "name": "Mei",
+            "profile": "A pragmatic transit engineer who investigates unexplained events."
+          }
+        ],
+        "episodes": [
+          {
+            "title": "Last Train",
+            "outline": "Mei discovers a train that should not exist."
+          }
+        ],
+        "assets": [
+          {
+            "assetKey": "station",
+            "kind": "scene",
+            "title": "Station",
+            "description": "A quiet underground station"
+          },
+          {
+            "assetKey": "mei",
+            "kind": "character",
+            "title": "Mei",
+            "description": "Transit engineer in a grey jacket"
+          },
+          {
+            "assetKey": "pass",
+            "kind": "prop",
+            "title": "Transit pass",
+            "description": "Worn green card"
+          }
+        ]
+      },
+      "outputs": []
+    },
+    "response": {
+      "status": "applied"
+    }
+  },
+  "failed": {
+    "body": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "outcome": "failed",
+      "errorCode": "provider_busy",
+      "message": "The provider is at capacity."
+    },
+    "response": {
+      "status": "applied"
+    }
+  },
+  "registerProviderJob": {
+    "stepKey": "generate",
+    "body": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "provider": "example-provider",
+      "jobId": "example-job-17"
+    }
+  },
+  "providerCheck": {
+    "query": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1"
+    },
+    "response": {
+      "pending": true,
+      "jobs": [
+        {
+          "stepKey": "generate",
+          "provider": "example-provider",
+          "jobId": "example-job-17"
+        }
+      ]
+    },
+    "confirmBody": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "schemaVersion": "1",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "workflowStopped": true,
+      "requestsSettled": true,
+      "jobsInactive": true,
+      "jobs": [
+        {
+          "stepKey": "generate",
+          "provider": "example-provider",
+          "jobId": "example-job-17"
+        }
+      ]
+    }
+  }
+}

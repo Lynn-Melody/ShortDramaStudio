@@ -590,21 +590,27 @@ class Scheduler:
             return "expired"
         return None
 
-    def submit_workflow_result(self, execution_id, outcome, *, record_outputs=None):
+    def submit_workflow_result(self, execution_id, outcome, *, record_outputs=None, prepare_outputs=None):
         """Map a workflow result outside the lock, then atomically record it.
 
         record_outputs, when provided, writes database rows only and returns the
         final output references. Validation involving the network belongs to the caller.
         A registered completion handler receives the mapped output and the recorder's
         result under the same lock, and returns the output saved to the task.
+        prepare_outputs optionally validates a mapped success outside the lock and
+        returns its database-only recorder.
         """
         if not isinstance(outcome, (Completed, Failed)):
             raise PlanError("Workflow results must complete or fail")
+        if record_outputs is not None and prepare_outputs is not None:
+            raise PlanError("Supply either a recorder or an output preparer")
         execution = Execution.objects.select_related("task").get(pk=execution_id)
         status = self._workflow_result_status(execution, outcome)
         if status is not None:
             return status
         mapped = self._map_workflow_result(execution, outcome)
+        if prepare_outputs is not None and isinstance(mapped, Completed):
+            record_outputs = prepare_outputs(execution, mapped.output)
         with transaction.atomic():
             execution = self._locked_execution(execution_id)
             status = self._workflow_result_status(execution, mapped)
