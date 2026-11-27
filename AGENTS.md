@@ -20,7 +20,7 @@
 
 开发 Agent 在 PR 中标明风险级别，审核者和合并负责人可以上调，不可下调。
 
-- **高风险**：改动调度核心或任务生命周期、数据库迁移、共享契约（`contracts/`、OpenAPI、生成类型）、`compose.yaml`、`infra/`、`.github/`，或同时改动两个以上模块。需要一个 GPT 会话和一个 Claude 会话分别审核。
+- **高风险**：改动调度核心或任务生命周期、数据库迁移、共享契约（`contracts/`、OpenAPI、生成类型）、`compose.yaml`、`infra/`、`.github/`，或同时改动两个或更多模块。需要一个 GPT 会话和一个 Claude 会话分别审核。
 - **标准**：其余改动。需要一位审核者，使用与作者不同的模型，例如 Codex 编写的任务由 Claude 审核。
 
 ## 开发 Agent
@@ -28,11 +28,11 @@
 1. **开发和提交。** 在任务分配的独立 worktree 和任务分支上工作。复杂任务拆成可验证的步骤，每步编写或更新相关测试、通过对应验证，再创建一个 Git commit。只暂存本任务的文件，用 `git diff --cached` 核对提交范围。共享接口的字段或行为改变时，更新受影响的 OpenAPI、生成类型和调用示例，由实际使用该接口的 Agent 核对兼容性。例如修改工作台 API 的响应时，更新公开契约和前端类型，请工作台 Agent 核对页面调用。在已启用格式化钩子的 worktree 中，若提交因格式化暂停，检查差异并重新暂存对应文件后再提交。
 2. **验证并开草稿 PR。** 按验收标准和 [README](README.md#本地安装与验证) 跑相关测试，记录实际运行的命令和结果。将任务分支推送到 `origin`，立即向 `main` 开草稿 PR，写明任务编号、变更范围、依赖和风险级别。分支推送本身不触发 CI，PR CI 是唯一的 CI 门禁。用 `git rev-parse HEAD` 取得最终提交号。PR CI 失败由作者在本地修复并推送新提交。
 3. **送审。** 推送后即可送审，无需等待 PR CI；审核结论只在同一提交的 PR CI 通过后生效。按风险级别新开全新上下文的独立只读审核会话，可由作者用 `claude -p` 或 `codex exec` 无头启动，也可交协调方启动。给审核者任务目标、验收标准、源分支、基线、最终提交号和 PR 链接。遇到阻塞意见，作者在本地修复、补回归测试并推送，再由提出该意见的审核者复核修复增量。每份结论都应标明实际通过的提交号。
-4. **转为正式 PR。** 审核通过且该提交的 PR CI 通过后，在 PR 中补充已审核的提交号、各审核结论、本地测试以及 PR CI 链接，再将 PR 标记为可审阅，即完成交接。需要尽快合入时，直接通知集成与合并负责人。后续新提交按下方审核有效性规则处理，并更新 PR 中记录的提交号；PR 已开启自动合并时，推送前先运行 `gh pr merge <PR编号> --disable-auto`。
+4. **转为正式 PR。** 审核通过且该提交的 PR CI 通过后，在 PR 中补充已审核的提交号、各审核结论、本地测试以及 PR CI 链接，再将 PR 标记为可审阅，即完成交接。需要尽快合入时，直接通知集成与合并负责人。后续新提交按下方审核有效性规则处理，并更新 PR 中记录的提交号。
 
 ### 审核有效性
 
-- 新提交是合并 `main` 的合并提交（例如 GitHub 的 Update branch）时，先确认仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交。按实际父提交顺序运行 `git merge-tree --write-tree "<第一父提交>" "<第二父提交>"`。只有命令成功退出，且输出的结果树与 `git rev-parse "<新提交号>^{tree}"` 一致时，原审核继续有效，只需新提交的 PR CI 通过。无法确认父提交来源、自动合并冲突或结果树不一致时，按下面的规则复核增量。
+- 新提交是合并 `main` 的合并提交（例如 GitHub 的 Update branch）时，先确认仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交，后者用 `git fetch origin main` 后的 `git merge-base --is-ancestor "<main 父提交>" origin/main` 确认。按实际父提交顺序运行 `git merge-tree --write-tree "<第一父提交>" "<第二父提交>"`。只有命令成功退出，且输出的结果树与 `git rev-parse "<新提交号>^{tree}"` 一致时，原审核继续有效，只需新提交的 PR CI 通过。无法确认父提交来源、自动合并冲突或结果树不一致时，按下面的规则复核增量。
 - 其他新提交由原审核者复核 `git diff "<已审提交号>..<新提交号>"`，无需从头重审。改动使风险级别上调时，补齐对应的审核。
 
 ### 查询 PR CI
@@ -47,9 +47,9 @@ gh run view "<CI 运行 ID>" --json headSha,status,conclusion,url
 
 也可在 GitHub PR 页面查看同一提交的检查。CI 尚未登记、被跳过或因权限无法查看时，记录实际状态，不将 PR 标记为可审阅。只交付本地改动的任务，报告分支、提交号、本地验证结果及停在哪一步。
 
-PR CI 在 GitHub 生成的合并提交上按路径选择检查。改动仅涉及根目录的 `AGENTS.md`、`README.md` 或 `docs/` 下的 Markdown 文件时，`verify` 校验合并父提交、补丁空白、文档和原型，`quick` 按配置跳过，以整个 `Development checks` 的成功结论为准。
+PR CI 在 GitHub 生成的合并提交上按路径选择检查。改动仅涉及根目录的 `AGENTS.md`、`README.md` 或 `docs/` 下的 Markdown 文件时，`verify` 校验合并父提交、补丁空白、文档和原型，`quick` 按配置跳过。路径分类作业 `scope` 未成功时，`quick` 和 `verify` 都会明确失败，不会因跳过而被视为通过。
 
-其他 PR 并行运行 `quick` 和 `verify`。`quick` 验证补丁空白、文档、原型、Django/PostgreSQL 和前端。`verify` 核对合并父提交，启动 Compose，验证私有对象存储的授权读写与匿名访问拒绝，并测试浏览器链路。默认启动 PostgreSQL、MinIO、API 和工作台。改动 `compose.yaml`、`infra/`、Agent、渲染、n8n 工作流、Python 依赖或 CI 工作流时启动完整 Compose。镜像层、pnpm 依赖和 MinIO 镜像都有缓存，`main` 的推送会预热缓存。
+其他 PR 并行运行 `quick` 和 `verify`。`quick` 验证补丁空白、文档、原型、Django/PostgreSQL 和前端。`verify` 核对合并父提交，启动 Compose，验证私有对象存储的授权读写与匿名访问拒绝，并测试浏览器链路。默认启动 PostgreSQL、MinIO、API、Worker 和工作台。改动 `compose.yaml`、`infra/`、Agent、渲染、n8n 工作流、Python 依赖与版本、`.dockerignore` 或 CI 工作流时启动完整 Compose。镜像层、pnpm 依赖和 MinIO 镜像都有缓存，`main` 的推送会预热缓存。
 
 ## 审核 Agent
 
@@ -61,8 +61,8 @@ PR CI 在 GitHub 生成的合并提交上按路径选择检查。改动仅涉及
 
 北京时间每天 09:00–23:00，每 30 分钟巡检一次，09:00 首轮，22:30 末轮。作者通知时可随时处理。查看指向 `main` 的非草稿 PR，按依赖顺序处理。用 `gh pr list --base main --state open` 或仓库的 Pull Requests 页面找候选 PR。没有符合条件的 PR 时，结束本轮。
 
-`main` 已开启分支保护：只能通过 PR 合入，`quick` 和 `verify` 必须通过，管理员同样受限。CI 是否通过由 GitHub 强制，合并负责人核对的是审核证据和合入顺序。
+`main` 已开启分支保护：只能通过 PR 合入，`quick` 和 `verify` 必须通过，PR 分支必须包含最新 `main`，管理员同样受限。CI 结论和"基于最新 `main` 测试"由 GitHub 强制，合并负责人核对的是审核证据和合入顺序。不使用自动合并：开启后有写权限的账号推送新提交不会取消它，未复核的提交可能被合入。
 
-- 核对 PR 最新提交号与风险级别要求的审核证据一致（或符合审核有效性规则）、阻塞意见已解决，以及前置 PR 已合并。用 `gh pr view <PR编号> --json headRefOid` 和 `gh pr checks <PR编号>` 查询，或直接查看 GitHub 页面。查看 CI 的 `Record tested PR merge parents` 日志，两个父提交应依次是当前 `main` 和 PR 最新提交。若 `main` 已前进，可直接用 GitHub 的 Update branch 更新分支，按审核有效性规则核对新提交；有冲突时交回作者。缺少任何一项就留待后续巡检。
-- 核验后用 `gh pr merge <PR编号> --auto --match-head-commit <已核验提交号>` 开启自动合并，PR CI 仍在运行时也可开启，CI 通过后由 GitHub 合入。提交号不一致时命令会失败。有写权限的账号推送新提交不会取消自动合并，所以开启后作者需要推送时，先运行 `gh pr merge <PR编号> --disable-auto`，由合并负责人重新核对新提交的 CI 和审核记录后再开启。
+- 核对 PR 最新提交号与风险级别要求的审核证据一致（或符合审核有效性规则）、阻塞意见已解决，以及前置 PR 已合并。用 `gh pr view <PR编号> --json headRefOid` 和 `gh pr checks <PR编号>` 查询，或直接查看 GitHub 页面。查看 CI 的 `Record tested PR merge parents` 日志，两个父提交应依次是当前 `main` 和 PR 最新提交。若 `main` 已前进，可直接用 GitHub 的 Update branch 更新分支，按审核有效性规则核对新提交，等它的 PR CI 通过；有冲突时交回作者。缺少任何一项就留待后续巡检。
+- 核验通过且该提交的 PR CI 成功后，立即用 `gh pr merge <PR编号> --merge --match-head-commit <已核验提交号>` 合入。提交号在核验后发生变化时命令会失败，此时重新核对新提交的 CI 和审核记录。
 - 记录合入结果。跨模块改动在集成结果上用两集四镜样例验收，覆盖项目创建到交付、暂停继续、Worker 重启和可恢复失败。

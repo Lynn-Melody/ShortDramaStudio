@@ -42,7 +42,7 @@ test('developer instructions order local validation, draft PR, risk-based review
   const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
   const risk = text.split('## 风险级别')[1]?.split('## 开发 Agent')[0];
   assert.ok(risk);
-  assert.match(risk, /\*\*高风险\*\*.*调度核心.*数据库迁移.*`contracts\/`.*`\.github\/`.*一个 GPT 会话和一个 Claude 会话/);
+  assert.match(risk, /\*\*高风险\*\*.*调度核心.*数据库迁移.*`contracts\/`.*`\.github\/`.*两个或更多模块.*一个 GPT 会话和一个 Claude 会话/);
   assert.match(risk, /\*\*标准\*\*.*一位审核者，使用与作者不同的模型/);
   const development = text.split('## 开发 Agent')[1]?.split('## 审核 Agent')[0];
   assert.ok(development);
@@ -57,9 +57,9 @@ test('developer instructions order local validation, draft PR, risk-based review
   assert.match(steps[2][2], /提出该意见的审核者复核修复增量/);
   assert.match(steps[3][2], /审核通过且该提交的 PR CI 通过后.*已审核的提交号.*标记为可审阅，即完成交接/);
   assert.match(development, /仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交/);
+  assert.match(development, /git merge-base --is-ancestor "<main 父提交>" origin\/main/);
   assert.match(development, /git merge-tree --write-tree.*命令成功退出.*结果树与.*git rev-parse.*一致时，原审核继续有效/);
   assert.match(development, /自动合并冲突或结果树不一致时，按下面的规则复核增量/);
-  assert.match(steps[3][2], /PR 已开启自动合并时，推送前先运行 `gh pr merge <PR编号> --disable-auto`/);
   assert.match(development, /原审核者复核 `git diff "<已审提交号>\.\.<新提交号>"`/);
   assert.match(development, /headSha.*送审提交一致.*conclusion.*success/);
   assert.match(development, /--event pull_request/);
@@ -75,7 +75,9 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(review, /注明审核时该提交 PR CI 的状态/);
   assert.match(review, /无法取得指定提交，报告缺项/);
   assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*作者通知时可随时处理.*非草稿 PR/);
-  assert.match(merge, /分支保护：只能通过 PR 合入，`quick` 和 `verify` 必须通过，管理员同样受限/);
+  assert.match(merge, /分支保护：只能通过 PR 合入，`quick` 和 `verify` 必须通过，PR 分支必须包含最新 `main`，管理员同样受限/);
+  assert.match(merge, /不使用自动合并/);
+  assert.doesNotMatch(text, /--auto\b|--disable-auto/);
   assert.match(merge, /最新提交号与风险级别要求的审核证据一致.*前置 PR 已合并/);
   assert.match(merge, /Update branch 更新分支.*有冲突时交回作者/);
   const workflow = readFileSync(resolve(__dirname, '..', '.github/workflows/development.yml'), 'utf8');
@@ -84,8 +86,7 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(workflow, /PR_HEAD: \$\{\{ github.event.pull_request.head.sha \}\}/);
   assert.match(workflow, /printf 'Tested merge parents: %s\\n' "\$parents"\s+test "\$parents" = "\$PR_BASE \$PR_HEAD"/);
   assert.match(merge, /Record tested PR merge parents.*父提交应依次是当前 `main` 和 PR 最新提交/);
-  assert.match(merge, /gh pr merge <PR编号> --auto --match-head-commit <已核验提交号>/);
-  assert.match(merge, /作者需要推送时，先运行 `gh pr merge <PR编号> --disable-auto`/);
+  assert.match(merge, /该提交的 PR CI 成功后，立即用 `gh pr merge <PR编号> --merge --match-head-commit <已核验提交号>` 合入/);
 });
 
 test('frontend CI invokes Corepack from the workspace that declares pnpm', () => {
@@ -109,7 +110,8 @@ test('PR CI selects documentation checks or the cached test jobs', () => {
   const workflow = readFileSync(resolve(root, '.github/workflows/development.yml'), 'utf8');
   const [triggers, scope, quick, verify] = workflow.split(/^ {2}(?:scope|quick|verify):\s*$/m);
   assert.match(triggers, /^ {2}pull_request:\s*$/m);
-  assert.match(triggers, /^ {2}merge_group:\s*$/m);
+  // No merge queue on this repository; a merge_group run would classify paths against HEAD^1 only.
+  assert.doesNotMatch(triggers, /merge_group/);
   assert.match(triggers, /push:\s+branches: \[main\]/);
   assert.match(triggers, /cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}/);
   assert.match(scope, /GITHUB_EVENT_NAME" = pull_request/);
@@ -124,8 +126,12 @@ test('PR CI selects documentation checks or the cached test jobs', () => {
     'docs/production-flow.test.cjs', 'docsx/guide.md', 'README.md.exe', '"docs/quoted.md"']) {
     assert.doesNotMatch(path, docPath);
   }
-  assert.match(quick, /needs: scope\s+if: needs.scope.outputs.docs-only == 'false'/);
-  assert.match(verify, /needs: scope/);
+  // Required checks that are skipped count as passing, so a failed scope job must fail both of them.
+  assert.match(quick, /needs: scope\s+#[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.scope.outputs.docs-only != 'true' \}\}/);
+  assert.match(verify, /needs: scope\s+if: \$\{\{ !cancelled\(\) \}\}/);
+  for (const job of [quick, verify]) {
+    assert.match(job, /steps:\s+- name: Require path classification\s+if: needs.scope.result != 'success'\s+run: \|[^\n]*\n[^\n]*\n\s+exit 1/);
+  }
   assert.match(verify, /name: Check documentation-only PR\s+if: needs.scope.outputs.docs-only == 'true'\s+run: \|\s+git diff --check HEAD\^1 HEAD\s+node --test docs\/production-flow.test.cjs prototype\/prototype.test.cjs/);
   assert.doesNotMatch(quick, /if: github.event_name/);
   assert.match(quick, /image: postgres:18/);
@@ -135,8 +141,18 @@ test('PR CI selects documentation checks or the cached test jobs', () => {
   assert.match(quick, /^ {12}pytest\s*$/m);
   assert.match(quick, /key: pnpm-.*hashFiles\('apps\/web\/pnpm-lock.yaml'\)/);
   assert.doesNotMatch(quick, /docker compose|test:e2e/);
-  assert.ok(verify.includes(String.raw`full='^(compose\.yaml|infra/|apps/(agents|render)/|workflows/n8n/|pyproject\.toml|uv\.lock|\.github/workflows/)'`));
-  assert.match(verify, /services=postgres minio api web/);
+  const fullPattern = verify.match(/full='([^']+)'/)?.[1];
+  assert.ok(fullPattern);
+  const fullStack = new RegExp(fullPattern);
+  for (const path of ['compose.yaml', 'infra/python.Dockerfile', 'apps/agents/urls.py', 'apps/render/urls.py',
+    'workflows/n8n/README.md', 'pyproject.toml', 'uv.lock', '.python-version', '.dockerignore',
+    '.github/workflows/development.yml']) {
+    assert.match(path, fullStack, path);
+  }
+  for (const path of ['apps/backend/scheduler/service.py', 'apps/web/src/main.tsx', 'docs/production-flow.test.cjs']) {
+    assert.doesNotMatch(path, fullStack, path);
+  }
+  assert.match(verify, /services=postgres minio api worker web/);
   assert.match(verify, /key: studio-minio-v1-.*hashFiles\('infra\/minio.Dockerfile'\)/);
   assert.match(verify, /docker image load -i/);
   assert.match(verify, /targets: \$\{\{ steps.stack.outputs.targets \}\}/);

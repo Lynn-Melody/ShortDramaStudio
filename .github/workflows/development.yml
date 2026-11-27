@@ -2,7 +2,6 @@ name: Development checks
 
 on:
   pull_request:
-  merge_group:
   push:
     branches: [main]
 
@@ -36,7 +35,8 @@ jobs:
           echo "docs-only=$docs_only" >> "$GITHUB_OUTPUT"
   quick:
     needs: scope
-    if: needs.scope.outputs.docs-only == 'false'
+    # Skipped required checks count as passing, so only a successful docs-only classification may skip quick.
+    if: ${{ !cancelled() && needs.scope.outputs.docs-only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -54,6 +54,11 @@ jobs:
           --health-timeout 3s
           --health-retries 15
     steps:
+      - name: Require path classification
+        if: needs.scope.result != 'success'
+        run: |
+          echo "scope finished with '${{ needs.scope.result }}'; refusing to report quick as passed"
+          exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -102,9 +107,15 @@ jobs:
           pnpm build
   verify:
     needs: scope
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require path classification
+        if: needs.scope.result != 'success'
+        run: |
+          echo "scope finished with '${{ needs.scope.result }}'; refusing to report verify as passed"
+          exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -130,14 +141,14 @@ jobs:
         id: stack
         if: needs.scope.outputs.docs-only == 'false'
         run: |
-          full='^(compose\.yaml|infra/|apps/(agents|render)/|workflows/n8n/|pyproject\.toml|uv\.lock|\.github/workflows/)'
+          full='^(compose\.yaml|infra/|apps/(agents|render)/|workflows/n8n/|pyproject\.toml|uv\.lock|\.python-version|\.dockerignore|\.github/workflows/)'
           changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
           if [ "$GITHUB_EVENT_NAME" = push ] || grep -qE "$full" <<< "$changed"; then
             echo "targets=api,render,web" >> "$GITHUB_OUTPUT"
             echo "services=" >> "$GITHUB_OUTPUT"
           else
             echo "targets=api,web" >> "$GITHUB_OUTPUT"
-            echo "services=postgres minio api web" >> "$GITHUB_OUTPUT"
+            echo "services=postgres minio api worker web" >> "$GITHUB_OUTPUT"
           fi
       - name: Cache fixed-version MinIO image
         id: minio-cache
