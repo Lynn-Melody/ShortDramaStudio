@@ -39,17 +39,18 @@ test('collaboration guide assigns each first-release task to one seat', () => {
   assert.deepEqual(taskIds.sort(), ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10']);
 });
 
-test('review handoff gives T10 one sender and identifies the reviewed commit', () => {
+test('collaboration guide puts branch CI, independent review and PR handoff before scheduled merges', () => {
   const text = readFileSync(resolve(__dirname, '..', 'AGENTS.md'), 'utf8');
-  const handoff = text.split(/\r?\n/).find(line => line.startsWith('- 审核通过后'));
-  assert.ok(handoff);
-  assert.match(handoff, /作者通知 T10/);
-  assert.match(handoff, /审核者代发.*一名通知人/);
-  for (const field of ['待合并分支', '已审核的提交号', '审核结论', '测试结果']) {
-    assert.ok(handoff.includes(field), field);
-  }
-  assert.match(text, /T10 收到通知后核对已审核的提交号/);
-  assert.match(text, /有新提交时，重新审核并更新通知/);
+  const flow = text.split('## 开发、审核与合并')[1];
+  assert.ok(flow);
+  const steps = [...flow.matchAll(/^\d+\. \*\*([^*]+)\*\* (.+)$/gm)];
+  assert.deepEqual(steps.map(([, label]) => label), [
+    '本地开发。', '分支 CI。', '任务双审。', '开 PR 交接。', '定期巡检与合并。',
+  ]);
+  assert.match(steps[2][2], /分支 CI 通过后.*一个 GPT 会话和一个 Claude 会话.*同一个最终提交/);
+  assert.match(steps[3][2], /双审通过后.*已审核的提交号.*提交 PR 即完成交接/);
+  assert.match(steps[4][2], /集成与合并负责人由定时任务触发.*PR 集成 CI 通过.*锁定已核对的提交号/);
+  assert.doesNotMatch(text, /作者通知 T10|T10 收到通知/);
 });
 
 test('local documentation links resolve after moving the workflow', () => {
