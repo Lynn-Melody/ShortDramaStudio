@@ -60,7 +60,7 @@ test('reviewer and merge instructions handle missing proof and verify the exact 
   assert.match(review, /只读，各自给出独立结论/);
   assert.match(review, /审核会话交付 `通过` 或 `阻塞`，附实际审核的提交号/);
   assert.match(review, /无法取得指定提交或同一提交的成功 CI，报告缺项/);
-  assert.match(merge, /定时巡检.*非草稿 PR/);
+  assert.match(merge, /北京时间每天 09:00–23:00，每 30 分钟巡检一次.*非草稿 PR/);
   assert.match(merge, /最新提交号与两份审核证据一致.*PR 集成 CI 通过/);
   assert.match(merge, /--match-head-commit <已审提交号>/);
 });
