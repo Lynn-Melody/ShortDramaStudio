@@ -1,0 +1,22 @@
+[project]
+name = "short-drama-studio"
+version = "0.1.0"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "boto3>=1.40,<2",
+    "django>=5.2.8,<5.3",
+    "djangorestframework>=3.16,<4",
+    "drf-spectacular>=0.29,<1",
+    "psycopg[binary]>=3.3,<4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-django>=4.11,<5",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "studio.settings"
+pythonpath = ["apps/backend"]
+testpaths = ["apps/backend/tests"]

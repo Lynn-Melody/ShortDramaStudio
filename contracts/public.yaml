@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info:
+  title: Short Drama Studio API
+  version: 1.0.0
+paths:
+  /api/v1/health:
+    get:
+      operationId: api_v1_health_retrieve
+      tags:
+      - api
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+components:
+  schemas:
+    Health:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+      required:
+      - status
+    StatusEnum:
+      enum:
+      - ok
+      - unavailable
+      type: string
+      description: |-
+        * `ok` - ok
+        * `unavailable` - unavailable

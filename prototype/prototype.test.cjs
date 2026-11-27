@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
-const { makeProject, progress, projectState, ready, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph } = require('./prototype.js');
+const { makeProject, progress, projectState, ready, retryTask, taskOutputs, libraryAssets, versionGroups, visibleTasks, graphLayout, fitGraph } = require('./prototype.js');
 
 test('the standalone entry page loads its stylesheet and script from the same folder', () => {
   const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
@@ -139,4 +139,15 @@ test('opening task details keeps the card opposite the clicked node', () => {
   assert.equal(taskDetailSide({ y: 40 }, view, height), 'bottom');
   assert.equal(taskDetailSide({ y: 260 }, view, height), 'top');
   assert.equal(taskDetailSide({ y: 260 }, { ...view, y: -170 }, height), 'bottom');
+});
+
+test('only a timed-out task can be retried, which makes it dispatchable again', () => {
+  const project = makeProject(1, '午夜来电');
+  assert.equal(retryTask(project, 'voice2'), false);
+  assert.equal(retryTask(project, 'ep1'), false);
+  assert.ok(!ready(project).some(task => task.id === 'sound'));
+  assert.equal(retryTask(project, 'sound'), true);
+  assert.equal(project.tasks.find(task => task.id === 'sound').state, 'waiting');
+  assert.ok(ready(project).some(task => task.id === 'sound'));
+  assert.equal(retryTask(project, 'sound'), false);
 });
