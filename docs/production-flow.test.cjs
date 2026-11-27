@@ -47,6 +47,7 @@ test('developer instructions order local validation, commit, branch CI, dual rev
     '开发和提交。', '验证完整任务。', '送审。', '开 PR。',
   ]);
   assert.match(steps[0][2], /编写或更新相关测试、通过对应验证，再创建一个 Git commit/);
+  assert.match(steps[0][2], /公开契约和前端类型，请工作台 Agent 核对页面调用/);
   assert.match(steps[1][2], /任务分支推送.*最终提交号查找对应的 GitHub Actions 分支 CI/);
   assert.match(steps[2][2], /分支 CI 通过后.*一个 GPT 会话和一个 Claude 会话.*独立只读审核/);
   assert.match(steps[3][2], /双审通过后.*已审核的提交号.*提交 PR 即完成交接/);
