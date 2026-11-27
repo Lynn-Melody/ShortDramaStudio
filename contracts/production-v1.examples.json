@@ -1,0 +1,473 @@
+{
+  "schemaVersion": "1",
+  "tasks": {
+    "series_plan": {
+      "workflow": "series_plan",
+      "input": {
+        "idea": "A ghost train returns."
+      },
+      "result": {
+        "data": {
+          "title": "Night Service",
+          "world": "An abandoned subway line reopens after midnight.",
+          "visualGuide": "Cool fluorescent light and fixed camera.",
+          "episodes": [
+            {
+              "title": "Last Train",
+              "outline": "Mei discovers a train that should not exist."
+            }
+          ],
+          "assets": [
+            {
+              "assetKey": "station",
+              "kind": "scene",
+              "title": "Station",
+              "description": "A quiet underground station"
+            },
+            {
+              "assetKey": "mei",
+              "kind": "character",
+              "title": "Mei",
+              "description": "Transit engineer in a grey jacket"
+            },
+            {
+              "assetKey": "pass",
+              "kind": "prop",
+              "title": "Transit pass",
+              "description": "Worn green card"
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    "episode_script": {
+      "workflow": "episode_script",
+      "input": {
+        "episodeNumber": 1,
+        "seriesTitle": "Night Service",
+        "world": "An abandoned subway line reopens after midnight.",
+        "visualGuide": "Cool fluorescent light and fixed camera.",
+        "assets": [
+          {
+            "assetKey": "station",
+            "kind": "scene",
+            "title": "Station",
+            "description": "A quiet underground station"
+          },
+          {
+            "assetKey": "mei",
+            "kind": "character",
+            "title": "Mei",
+            "description": "Transit engineer in a grey jacket"
+          },
+          {
+            "assetKey": "pass",
+            "kind": "prop",
+            "title": "Transit pass",
+            "description": "Worn green card"
+          }
+        ],
+        "episode": {
+          "title": "Last Train",
+          "outline": "Mei discovers a train that should not exist."
+        }
+      },
+      "result": {
+        "data": {
+          "script": "INT. STATION - NIGHT\\nMei: Wait for me!"
+        },
+        "outputs": []
+      }
+    },
+    "episode_breakdown": {
+      "workflow": "episode_breakdown",
+      "input": {
+        "episodeNumber": 1,
+        "script": "Mei: Wait for me!",
+        "visualGuide": "Cool fluorescent light and fixed camera.",
+        "assets": [
+          {
+            "assetKey": "station",
+            "kind": "scene",
+            "title": "Station",
+            "description": "A quiet underground station"
+          },
+          {
+            "assetKey": "mei",
+            "kind": "character",
+            "title": "Mei",
+            "description": "Transit engineer in a grey jacket"
+          }
+        ]
+      },
+      "result": {
+        "data": {
+          "shots": [
+            {
+              "sceneId": "station",
+              "description": "Mei reaches the platform as the doors close.",
+              "estimatedDurationMs": 1200,
+              "assetKeys": [
+                "mei",
+                "pass"
+              ],
+              "dialogue": [
+                {
+                  "lineId": "line-1",
+                  "speaker": "Mei",
+                  "text": "Wait for me!",
+                  "delivery": "lip_sync"
+                }
+              ],
+              "sound": [
+                {
+                  "cueId": "cue-1",
+                  "description": "Train door closes"
+                }
+              ]
+            }
+          ],
+          "assets": [
+            {
+              "assetKey": "pass",
+              "kind": "prop",
+              "title": "Transit pass",
+              "description": "Worn green card"
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    "scene_asset": {
+      "workflow": "visual_asset",
+      "input": {
+        "asset": {
+          "assetKey": "station",
+          "kind": "scene",
+          "title": "Station",
+          "description": "A quiet underground station"
+        },
+        "visualGuide": "Cool fluorescent light and fixed camera."
+      },
+      "result": {
+        "data": {
+          "selectedSlot": "main"
+        },
+        "outputs": [
+          {
+            "slot": "main",
+            "assetKey": "station",
+            "kind": "scene",
+            "title": "station",
+            "uploadId": "00000000-0000-4000-8000-000000000005"
+          }
+        ]
+      }
+    },
+    "character_asset": {
+      "workflow": "visual_asset",
+      "input": {
+        "asset": {
+          "assetKey": "mei",
+          "kind": "character",
+          "title": "Mei",
+          "description": "Transit engineer in a grey jacket"
+        },
+        "visualGuide": "Cool fluorescent light and fixed camera."
+      },
+      "result": {
+        "data": {
+          "selectedSlot": "main"
+        },
+        "outputs": [
+          {
+            "slot": "main",
+            "assetKey": "mei",
+            "kind": "character",
+            "title": "mei",
+            "uploadId": "00000000-0000-4000-8000-000000000005"
+          }
+        ]
+      }
+    },
+    "prop_asset": {
+      "workflow": "visual_asset",
+      "input": {
+        "asset": {
+          "assetKey": "pass",
+          "kind": "prop",
+          "title": "Transit pass",
+          "description": "Worn green card"
+        },
+        "visualGuide": "Cool fluorescent light and fixed camera."
+      },
+      "result": {
+        "data": {
+          "selectedSlot": "main"
+        },
+        "outputs": [
+          {
+            "slot": "main",
+            "assetKey": "pass",
+            "kind": "prop",
+            "title": "pass",
+            "uploadId": "00000000-0000-4000-8000-000000000005"
+          }
+        ]
+      }
+    },
+    "shot_image": {
+      "workflow": "shot_image",
+      "input": {
+        "episodeNumber": 1,
+        "shotNumber": 1,
+        "shot": {
+          "sceneId": "station",
+          "description": "Mei reaches the platform as the doors close.",
+          "estimatedDurationMs": 1200,
+          "assetKeys": [
+            "mei",
+            "pass"
+          ],
+          "dialogue": [
+            {
+              "lineId": "line-1",
+              "speaker": "Mei",
+              "text": "Wait for me!",
+              "delivery": "lip_sync"
+            }
+          ],
+          "sound": [
+            {
+              "cueId": "cue-1",
+              "description": "Train door closes"
+            }
+          ]
+        },
+        "visualGuide": "Cool fluorescent light and fixed camera.",
+        "assets": [
+          {
+            "assetKey": "station",
+            "kind": "scene",
+            "versionId": "00000000-0000-4000-8000-000000000001"
+          },
+          {
+            "assetKey": "mei",
+            "kind": "character",
+            "versionId": "00000000-0000-4000-8000-000000000002"
+          },
+          {
+            "assetKey": "pass",
+            "kind": "prop",
+            "versionId": "00000000-0000-4000-8000-000000000003"
+          }
+        ]
+      },
+      "result": {
+        "data": {
+          "selectedSlot": "main"
+        },
+        "outputs": [
+          {
+            "slot": "main",
+            "assetKey": "e1.s1.image",
+            "kind": "image",
+            "title": "e1.s1.image",
+            "uploadId": "00000000-0000-4000-8000-000000000007"
+          }
+        ]
+      }
+    },
+    "shot_dialogue": {
+      "workflow": "shot_audio",
+      "input": {
+        "episodeNumber": 1,
+        "shotNumber": 1,
+        "dialogue": [
+          {
+            "lineId": "line-1",
+            "speaker": "Mei",
+            "text": "Wait for me!",
+            "delivery": "lip_sync"
+          }
+        ]
+      },
+      "result": {
+        "data": {
+          "takes": [
+            {
+              "lineId": "line-1",
+              "startMs": 100,
+              "endMs": 1500,
+              "durationMs": 1400,
+              "slot": "line-1"
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "slot": "line-1",
+            "assetKey": "e1.s1.line1",
+            "kind": "audio",
+            "title": "e1.s1.line1",
+            "uploadId": "00000000-0000-4000-8000-000000000011"
+          }
+        ]
+      }
+    },
+    "shot_video": {
+      "workflow": "shot_video",
+      "input": {
+        "episodeNumber": 1,
+        "shotNumber": 1,
+        "sceneId": "station",
+        "description": "Mei reaches the platform as the doors close.",
+        "firstFrame": {
+          "assetKey": "e1.s1.image",
+          "kind": "image",
+          "versionId": "00000000-0000-4000-8000-000000000008"
+        },
+        "lastFrame": {
+          "assetKey": "e1.s2.image",
+          "kind": "image",
+          "versionId": "00000000-0000-4000-8000-000000000009"
+        },
+        "lipSync": [
+          {
+            "lineId": "line-1",
+            "startMs": 100,
+            "endMs": 1500,
+            "durationMs": 1400,
+            "delivery": "lip_sync",
+            "text": "Wait for me!",
+            "audio": {
+              "assetKey": "e1.s1.line1",
+              "kind": "audio",
+              "versionId": "00000000-0000-4000-8000-000000000010"
+            }
+          }
+        ],
+        "targetDurationMs": 1750
+      },
+      "result": {
+        "data": {
+          "selectedSlot": "main",
+          "durationMs": 1750
+        },
+        "outputs": [
+          {
+            "slot": "main",
+            "assetKey": "e1.s1.video",
+            "kind": "video",
+            "title": "e1.s1.video",
+            "uploadId": "00000000-0000-4000-8000-000000000013"
+          }
+        ]
+      }
+    },
+    "shot_sound": {
+      "workflow": "shot_audio",
+      "input": {
+        "episodeNumber": 1,
+        "shotNumber": 1,
+        "sound": [
+          {
+            "cueId": "cue-1",
+            "description": "Train door closes"
+          }
+        ],
+        "targetDurationMs": 1750
+      },
+      "result": {
+        "data": {
+          "takes": [
+            {
+              "cueId": "cue-1",
+              "slot": "cue-1"
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "slot": "cue-1",
+            "assetKey": "e1.s1.cue1",
+            "kind": "audio",
+            "title": "e1.s1.cue1",
+            "uploadId": "00000000-0000-4000-8000-000000000015"
+          }
+        ]
+      }
+    },
+    "episode_edit": {
+      "workflow": "episode_edit",
+      "input": {
+        "episodeNumber": 1,
+        "title": "Last Train",
+        "shots": [
+          {
+            "shotNumber": 1,
+            "video": {
+              "assetKey": "e1.s1.video",
+              "kind": "video",
+              "versionId": "00000000-0000-4000-8000-000000000014"
+            },
+            "durationMs": 1750,
+            "dialogue": [
+              {
+                "lineId": "line-1",
+                "startMs": 100,
+                "endMs": 1500,
+                "durationMs": 1400,
+                "delivery": "lip_sync",
+                "text": "Wait for me!",
+                "audio": {
+                  "assetKey": "e1.s1.line1",
+                  "kind": "audio",
+                  "versionId": "00000000-0000-4000-8000-000000000010"
+                }
+              }
+            ],
+            "sound": [
+              {
+                "cueId": "cue-1",
+                "audio": {
+                  "assetKey": "e1.s1.cue1",
+                  "kind": "audio",
+                  "versionId": "00000000-0000-4000-8000-000000000016"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "data": {},
+        "outputs": [
+          {
+            "slot": "video",
+            "assetKey": "e1.video",
+            "kind": "video",
+            "title": "e1.video",
+            "uploadId": "00000000-0000-4000-8000-000000000017"
+          },
+          {
+            "slot": "subtitles",
+            "assetKey": "e1.subtitles",
+            "kind": "subtitles",
+            "title": "e1.subtitles",
+            "uploadId": "00000000-0000-4000-8000-000000000018"
+          },
+          {
+            "slot": "timeline",
+            "assetKey": "e1.timeline",
+            "kind": "timeline",
+            "title": "e1.timeline",
+            "uploadId": "00000000-0000-4000-8000-000000000019"
+          }
+        ]
+      }
+    }
+  }
+}
