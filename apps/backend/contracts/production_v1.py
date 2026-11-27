@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError
 
 
 VERSION = "1"
+MAX_DURATION_MS = 86_400_000
 KINDS = ("character", "scene", "prop")
 DELIVERY_KINDS = {"video": "video", "subtitles": "subtitles", "timeline": "timeline"}
 
@@ -42,12 +43,12 @@ class UUID(s.UUIDField):
         return str(super().to_internal_value(data))
 
 
-def positive():
-    return Integer(min_value=1, max_value=2_147_483_647)
+def positive(**kwargs):
+    return Integer(min_value=1, max_value=2_147_483_647, **kwargs)
 
 
 def millis(*, minimum=0):
-    return Integer(min_value=minimum, max_value=86_400_000)
+    return Integer(min_value=minimum, max_value=MAX_DURATION_MS)
 
 
 def ordered_unique(items, key):
@@ -126,10 +127,16 @@ class SeriesPlanInput(Object):
     idea = Text()
 
 
+class CharacterProfile(Object):
+    name = Text(max_length=200)
+    profile = Text()
+
+
 class SeriesPlanData(Object):
     title = Text(max_length=200)
     world = Text()
     visualGuide = Text()
+    characters = CharacterProfile(many=True, required=False)
     episodes = EpisodeOutline(many=True, allow_empty=False)
     assets = AssetSpec(many=True)
 
@@ -142,6 +149,7 @@ class EpisodeScriptInput(EpisodeInput):
     world = Text()
     visualGuide = Text()
     episode = EpisodeOutline()
+    characters = CharacterProfile(many=True, required=False)
     assets = AssetSpec(many=True)
 
 
@@ -164,6 +172,7 @@ class EpisodeBreakdownData(Object):
 
 
 class VisualAssetInput(Object):
+    episodeNumber = positive(required=False)
     asset = AssetSpec()
     visualGuide = Text()
 
@@ -178,7 +187,11 @@ class ShotImageInput(ShotInput):
     assets = AssetRef(many=True)
 
 
-class DialogueInput(ShotInput):
+class DialogueTaskInput(ShotInput):
+    dialogue = Line(many=True)
+
+
+class DialogueInput(DialogueTaskInput):
     dialogue = Line(many=True, allow_empty=False)
 
 
