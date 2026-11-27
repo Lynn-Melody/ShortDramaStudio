@@ -35,7 +35,7 @@
 
 ## 核心调度
 
-已实现的 Python 接入点与下游交接契约见 [T01 调度模块接入说明](scheduler-integration.md)。
+通用调度的 Python 接入点见 [T01 调度模块接入说明](scheduler-integration.md)。生产任务、工作流和素材版本的接入约定见 [T02 生产后端接入](production-integration.md)。
 
 ### 任务类与持久化记录
 

@@ -74,6 +74,8 @@ class BaseTask(ABC):
     timeout = timedelta(minutes=5)
     max_running_per_project: int | None = None
     retry_policy = RetryPolicy()
+    # Optional database-only handler called inside workflow completion's transaction.
+    workflow_completion_handler = None
 
     def __init__(self, input, *, checkpoint=None, parent=None, child_outputs=None, dependency_outputs=None):
         self.input = deepcopy(input)

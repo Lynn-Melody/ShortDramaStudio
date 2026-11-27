@@ -21,7 +21,7 @@ T03 将 `SCHEDULER_WORKFLOW_DISPATCHER` 配置为接收 `WorkflowRequest` 的函
 | 工作流接收 | `accept_workflow(execution_id)` 返回 `WorkflowAcceptance`。仅首次 `accepted` 携带业务输入，其他状态用来结束重复、过期或未就绪的调用 |
 | 执行有效性 | `workflow_is_current(execution_id)` 在已接收的工作流仍是当前执行且未到期时返回真 |
 | 工作流结果 | `submit_workflow_result(execution_id, Completed(...) 或 Failed(...))`。结果先经任务类的 `on_workflow_result()` 映射，当前有效结果才可在项目锁内提交。映射异常或无效结果会将当前执行记为 `invalid_workflow_result`，等待人工处理 |
-| 素材登记 | T03 和 T04 可以传入 `record_outputs(execution, output) -> dict`。函数仅写数据库并返回最终引用，与任务完成同事务。服务身份、上传与对象验证在调用前由接入层完成 |
+| 素材登记 | T03 和 T04 可以传入 `record_outputs(execution, output) -> dict`。函数仅写数据库并返回最终引用，与任务完成同事务。任务类可注册数据库内的 `workflow_completion_handler(execution, mapped, recorded)`，在登记后写入领域数据并返回保存到任务的产出。服务身份、上传与对象验证在调用前由接入层完成 |
 | 供应商任务 | `register_provider_job(execution_id, step_key, provider, job_id)` 幂等登记，也接收仍是当前执行的超时工作流补报的作业 ID。已接收的工作流超时后，接入层核查工作流不会再发起请求、在途请求已查清且供应商作业无后续结果，再调用 `confirm_provider_jobs_inactive(execution_id, jobs=已核查的快照)` 恢复重试策略。登记列表为空时仍需核查工作流与在途请求 |
 | 传输失败 | 派发函数用 `DeliveryError(code, retryable=True)` 表示可重传，同一执行退避重发。确定不可重试时传 `retryable=False` |
 

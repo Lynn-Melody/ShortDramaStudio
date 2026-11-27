@@ -595,6 +595,8 @@ class Scheduler:
 
         record_outputs, when provided, writes database rows only and returns the
         final output references. Validation involving the network belongs to the caller.
+        A registered completion handler receives the mapped output and the recorder's
+        result under the same lock, and returns the output saved to the task.
         """
         if not isinstance(outcome, (Completed, Failed)):
             raise PlanError("Workflow results must complete or fail")
@@ -623,9 +625,16 @@ class Scheduler:
                     return "expired"
                 mapped = Failed(INVALID_WORKFLOW_RESULT, "Task class returned an invalid workflow result")
             if isinstance(mapped, Completed):
+                task = execution.task
+                task_class = self.registry.resolve(task.task_type, task.definition_version)
+                handler = task_class.workflow_completion_handler
+                recorded = output
                 if record_outputs is not None:
-                    output = _json_object(record_outputs(execution, output))
-                self._complete(execution, mapped, now, output)
+                    recorder_input = _json_object(output) if handler is not None else output
+                    recorded = _json_object(record_outputs(execution, recorder_input))
+                if handler is not None:
+                    recorded = _json_object(handler(execution, output, recorded))
+                self._complete(execution, mapped, now, recorded)
             elif mapped.error_code == INVALID_WORKFLOW_RESULT:
                 self._fail(execution, mapped, now, retryable=False)
             else:
