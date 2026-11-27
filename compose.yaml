@@ -41,6 +41,7 @@ services:
       retries: 30
 
   minio:
+    image: short-drama-studio-minio:dev
     build:
       context: .
       dockerfile: infra/minio.Dockerfile

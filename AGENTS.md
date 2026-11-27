@@ -33,6 +33,8 @@ gh run view "<CI 运行 ID>" --json headSha,status,conclusion,url
 
 也可在 GitHub Actions 页面查看同一提交的运行。CI 尚未登记、被跳过或因权限无法查看时，记录实际状态并停在送审前。只交付本地改动的任务，报告分支、提交号、本地验证结果及停在哪一步。
 
+分支推送查看 `quick` 作业。它验证补丁空白、文档、原型、Django/PostgreSQL 和前端，直接使用 PostgreSQL 服务容器。PR 查看 `verify` 作业。它在 GitHub 生成的合并提交上启动完整 Compose，验证对象存储与浏览器链路。MinIO 镜像按 Dockerfile 缓存，`main` 的推送会预热缓存。
+
 ## 审核 Agent
 
 1. 核对派发的基线、待审提交号和分支 CI 结果。需要时用 `git fetch origin "<任务分支>"` 取得待审提交。初审用 `git diff "<基线提交号>...<待审提交号>"` 查看完整任务差异，对照验收标准和相关设计核查行为、失败路径、接口兼容及测试覆盖。复核时比较上次送审提交和当前提交，确认阻塞问题已解决且修复没有引入回归。

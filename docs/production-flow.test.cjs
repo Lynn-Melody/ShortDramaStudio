@@ -84,6 +84,24 @@ test('frontend CI invokes Corepack from the workspace that declares pnpm', () =>
   assert.match(readme, /Set-Location apps\/web\r?\npnpm types:generate/);
 });
 
+test('branch CI runs quick checks and PR CI integrates with a reusable MinIO image', () => {
+  const root = resolve(__dirname, '..');
+  const workflow = readFileSync(resolve(root, '.github/workflows/development.yml'), 'utf8');
+  const [, quick, verify] = workflow.split(/^ {2}(?:quick|verify):\s*$/m);
+  assert.match(quick, /if: github.event_name == 'push'/);
+  assert.match(quick, /image: postgres:18/);
+  assert.match(quick, /uv run --locked pytest/);
+  assert.doesNotMatch(quick, /docker compose|test:e2e/);
+  assert.match(verify, /name: Start development stack\s+if: github.event_name == 'pull_request'/);
+  assert.match(verify, /key: studio-minio-v1-.*hashFiles\('infra\/minio.Dockerfile'\)/);
+  assert.match(verify, /docker image load -i/);
+  assert.match(verify, /docker compose build api render web\s+docker compose up --no-build/);
+  assert.match(verify, /pnpm test:e2e/);
+  const compose = readFileSync(resolve(root, 'compose.yaml'), 'utf8');
+  assert.match(compose, /^  minio:\s+image: short-drama-studio-minio:dev$/m);
+  assert.match(verify, /docker image save .* short-drama-studio-minio:dev/);
+});
+
 test('local documentation links resolve after moving the workflow', () => {
   for (const file of ['AGENTS.md', 'docs/production-flow.md', 'docs/product-design.md', 'docs/technical-design.md', 'docs/scheduler-integration.md']) {
     const path = resolve(__dirname, '..', file);
