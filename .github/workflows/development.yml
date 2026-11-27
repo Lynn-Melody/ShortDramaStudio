@@ -14,7 +14,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs-only: ${{ steps.paths.outputs.docs-only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Classify changed paths
+        id: paths
+        run: |
+          docs_only=false
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
+            if [ -n "$changed" ] && ! grep -qEv '^(AGENTS\.md|README\.md|docs/[^"]+\.md)$' <<< "$changed"; then
+              docs_only=true
+            fi
+          fi
+          echo "docs-only=$docs_only" >> "$GITHUB_OUTPUT"
   quick:
+    needs: scope
+    if: needs.scope.outputs.docs-only == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -79,6 +101,7 @@ jobs:
           pnpm test
           pnpm build
   verify:
+    needs: scope
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -94,11 +117,22 @@ jobs:
           parents=$(git show -s --format='%P' HEAD)
           printf 'Tested merge parents: %s\n' "$parents"
           test "$parents" = "$PR_BASE $PR_HEAD"
+      - uses: actions/setup-node@v4
+        if: needs.scope.outputs.docs-only == 'true'
+        with:
+          node-version: 24
+      - name: Check documentation-only PR
+        if: needs.scope.outputs.docs-only == 'true'
+        run: |
+          git diff --check HEAD^1 HEAD
+          node --test docs/production-flow.test.cjs prototype/prototype.test.cjs
       - name: Choose integration services
         id: stack
+        if: needs.scope.outputs.docs-only == 'false'
         run: |
           full='^(compose\.yaml|infra/|apps/(agents|render)/|workflows/n8n/|pyproject\.toml|uv\.lock|\.github/workflows/)'
-          if [ "$GITHUB_EVENT_NAME" = push ] || git diff --name-only HEAD^1 HEAD | grep -qE "$full"; then
+          changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          if [ "$GITHUB_EVENT_NAME" = push ] || grep -qE "$full" <<< "$changed"; then
             echo "targets=api,render,web" >> "$GITHUB_OUTPUT"
             echo "services=" >> "$GITHUB_OUTPUT"
           else
@@ -107,20 +141,23 @@ jobs:
           fi
       - name: Cache fixed-version MinIO image
         id: minio-cache
+        if: needs.scope.outputs.docs-only == 'false'
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/studio-minio.tar
           key: studio-minio-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('infra/minio.Dockerfile') }}
       - name: Build MinIO on cache miss
-        if: steps.minio-cache.outputs.cache-hit != 'true'
+        if: needs.scope.outputs.docs-only == 'false' && steps.minio-cache.outputs.cache-hit != 'true'
         run: |
           docker compose build minio
           docker image save -o "${RUNNER_TEMP}/studio-minio.tar" short-drama-studio-minio:dev
       - name: Load cached MinIO image
-        if: github.event_name != 'push' && steps.minio-cache.outputs.cache-hit == 'true'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push' && steps.minio-cache.outputs.cache-hit == 'true'
         run: docker image load -i "${RUNNER_TEMP}/studio-minio.tar"
       - uses: docker/setup-buildx-action@v3
+        if: needs.scope.outputs.docs-only == 'false'
       - name: Build cached service images
+        if: needs.scope.outputs.docs-only == 'false'
         uses: docker/bake-action@v6
         with:
           source: .
@@ -135,30 +172,32 @@ jobs:
             web.cache-from=type=gha,scope=web
             web.cache-to=type=gha,scope=web,mode=max
       - name: Start development stack
-        if: github.event_name != 'push'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         run: docker compose up --no-build --wait --wait-timeout 180 ${{ steps.stack.outputs.services }}
-      - name: Check object storage initialization
-        if: github.event_name != 'push'
-        run: docker compose run --rm --no-deps storage-init
+      - name: Check object storage
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
+        run: |
+          docker compose run --rm --no-deps storage-init
+          docker compose exec -T api pytest apps/backend/tests/test_storage.py
       - uses: actions/setup-node@v4
-        if: github.event_name != 'push'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         with:
           node-version: 24
       - name: Prepare pnpm cache
         id: pnpm
-        if: github.event_name != 'push'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         working-directory: apps/web
         run: |
           corepack enable
           echo "store=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
-        if: github.event_name != 'push'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         with:
           path: ${{ steps.pnpm.outputs.store }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
       - name: Check browser path
-        if: github.event_name != 'push'
+        if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         working-directory: apps/web
         env:
           PLAYWRIGHT_CHANNEL: chrome
@@ -166,8 +205,8 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm test:e2e
       - name: Show service logs
-        if: failure() && github.event_name != 'push'
+        if: failure() && needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         run: docker compose logs --no-color
       - name: Stop development stack
-        if: always() && github.event_name != 'push'
+        if: always() && needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'
         run: docker compose down

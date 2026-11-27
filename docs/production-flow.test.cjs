@@ -56,7 +56,9 @@ test('developer instructions order local validation, draft PR, risk-based review
   assert.match(steps[2][2], /无需等待 PR CI；审核结论只在同一提交的 PR CI 通过后生效/);
   assert.match(steps[2][2], /提出该意见的审核者复核修复增量/);
   assert.match(steps[3][2], /审核通过且该提交的 PR CI 通过后.*已审核的提交号.*标记为可审阅，即完成交接/);
-  assert.match(development, /合并 `main` 的合并提交.*父提交包含已审提交.*git show --cc.*原审核继续有效/);
+  assert.match(development, /仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交/);
+  assert.match(development, /git merge-tree --write-tree.*命令成功退出.*结果树与.*git rev-parse.*一致时，原审核继续有效/);
+  assert.match(development, /自动合并冲突或结果树不一致时，按下面的规则复核增量/);
   assert.match(development, /原审核者复核 `git diff "<已审提交号>\.\.<新提交号>"`/);
   assert.match(development, /headSha.*送审提交一致.*conclusion.*success/);
   assert.match(development, /--event pull_request/);
@@ -100,14 +102,29 @@ test('frontend CI invokes Corepack from the workspace that declares pnpm', () =>
   assert.match(readme, /Set-Location apps\/web\r?\npnpm types:generate/);
 });
 
-test('PR CI runs cached quick checks and a right-sized integration stack in parallel', () => {
+test('PR CI selects documentation checks or the cached test jobs', () => {
   const root = resolve(__dirname, '..');
   const workflow = readFileSync(resolve(root, '.github/workflows/development.yml'), 'utf8');
-  const [triggers, quick, verify] = workflow.split(/^ {2}(?:quick|verify):\s*$/m);
+  const [triggers, scope, quick, verify] = workflow.split(/^ {2}(?:scope|quick|verify):\s*$/m);
   assert.match(triggers, /^ {2}pull_request:\s*$/m);
   assert.match(triggers, /^ {2}merge_group:\s*$/m);
   assert.match(triggers, /push:\s+branches: \[main\]/);
   assert.match(triggers, /cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}/);
+  assert.match(scope, /GITHUB_EVENT_NAME" = pull_request/);
+  assert.match(scope, /git diff --name-only --no-renames HEAD\^1 HEAD/);
+  const pathPattern = scope.match(/! grep -qEv '([^']+)'/)?.[1];
+  assert.ok(pathPattern);
+  const docPath = new RegExp(pathPattern);
+  for (const path of ['README.md', 'AGENTS.md', 'docs/production-flow.md', 'docs/team/guide.md']) {
+    assert.match(path, docPath);
+  }
+  for (const path of ['apps/backend/studio/settings.py', '.github/workflows/development.yml',
+    'docs/production-flow.test.cjs', 'docsx/guide.md', 'README.md.exe', '"docs/quoted.md"']) {
+    assert.doesNotMatch(path, docPath);
+  }
+  assert.match(quick, /needs: scope\s+if: needs.scope.outputs.docs-only == 'false'/);
+  assert.match(verify, /needs: scope/);
+  assert.match(verify, /name: Check documentation-only PR\s+if: needs.scope.outputs.docs-only == 'true'\s+run: \|\s+git diff --check HEAD\^1 HEAD\s+node --test docs\/production-flow.test.cjs prototype\/prototype.test.cjs/);
   assert.doesNotMatch(quick, /if: github.event_name/);
   assert.match(quick, /image: postgres:18/);
   assert.match(quick, /git diff --check HEAD\^1 HEAD/);
@@ -124,7 +141,8 @@ test('PR CI runs cached quick checks and a right-sized integration stack in para
   for (const target of ['api', 'render', 'web']) {
     assert.match(verify, new RegExp(String.raw`${target}\.cache-to=type=gha,scope=`));
   }
-  assert.match(verify, /name: Start development stack\s+if: github.event_name != 'push'\s+run: docker compose up --no-build --wait/);
+  assert.match(verify, /name: Start development stack\s+if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'\s+run: docker compose up --no-build --wait/);
+  assert.match(verify, /name: Check object storage\s+if: needs.scope.outputs.docs-only == 'false' && github.event_name != 'push'\s+run: \|\s+docker compose run --rm --no-deps storage-init\s+docker compose exec -T api pytest apps\/backend\/tests\/test_storage.py/);
   assert.match(verify, /PLAYWRIGHT_CHANNEL: chrome[\s\S]*?pnpm test:e2e/);
   const compose = readFileSync(resolve(root, 'compose.yaml'), 'utf8');
   for (const service of ['minio', 'render', 'web']) {

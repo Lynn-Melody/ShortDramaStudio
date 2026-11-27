@@ -32,7 +32,7 @@
 
 ### 审核有效性
 
-- 新提交是合并 `main` 的合并提交（例如 GitHub 的 Update branch），父提交包含已审提交，且 `git show --cc "<新提交号>"` 没有冲突解决差异时，原审核继续有效，只需新提交的 PR CI 通过。
+- 新提交是合并 `main` 的合并提交（例如 GitHub 的 Update branch）时，先确认仅有两个父提交，分别是已审提交和本次合入的远端 `main` 提交。按实际父提交顺序运行 `git merge-tree --write-tree "<第一父提交>" "<第二父提交>"`。只有命令成功退出，且输出的结果树与 `git rev-parse "<新提交号>^{tree}"` 一致时，原审核继续有效，只需新提交的 PR CI 通过。无法确认父提交来源、自动合并冲突或结果树不一致时，按下面的规则复核增量。
 - 其他新提交由原审核者复核 `git diff "<已审提交号>..<新提交号>"`，无需从头重审。改动使风险级别上调时，补齐对应的审核。
 
 ### 查询 PR CI
@@ -47,7 +47,9 @@ gh run view "<CI 运行 ID>" --json headSha,status,conclusion,url
 
 也可在 GitHub PR 页面查看同一提交的检查。CI 尚未登记、被跳过或因权限无法查看时，记录实际状态，不将 PR 标记为可审阅。只交付本地改动的任务，报告分支、提交号、本地验证结果及停在哪一步。
 
-PR 并行运行两个作业，都在 GitHub 生成的合并提交上执行。`quick` 验证补丁空白、文档、原型、Django/PostgreSQL 和前端。`verify` 核对合并父提交，启动 Compose 并验证对象存储与浏览器链路：默认只启动 PostgreSQL、MinIO、API 和工作台；改动 `compose.yaml`、`infra/`、Agent、渲染、n8n 工作流、Python 依赖或 CI 工作流时启动完整 Compose。镜像层、pnpm 依赖和 MinIO 镜像都有缓存，`main` 的推送会预热缓存。
+PR CI 在 GitHub 生成的合并提交上按路径选择检查。改动仅涉及根目录的 `AGENTS.md`、`README.md` 或 `docs/` 下的 Markdown 文件时，`verify` 校验合并父提交、补丁空白、文档和原型，`quick` 按配置跳过，以整个 `Development checks` 的成功结论为准。
+
+其他 PR 并行运行 `quick` 和 `verify`。`quick` 验证补丁空白、文档、原型、Django/PostgreSQL 和前端。`verify` 核对合并父提交，启动 Compose，验证私有对象存储的授权读写与匿名访问拒绝，并测试浏览器链路。默认启动 PostgreSQL、MinIO、API 和工作台。改动 `compose.yaml`、`infra/`、Agent、渲染、n8n 工作流、Python 依赖或 CI 工作流时启动完整 Compose。镜像层、pnpm 依赖和 MinIO 镜像都有缓存，`main` 的推送会预热缓存。
 
 ## 审核 Agent
 
