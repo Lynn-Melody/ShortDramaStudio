@@ -285,7 +285,7 @@
         "outputs": [
           {
             "slot": "main",
-            "assetKey": "e1.s1.image",
+            "assetKey": "production:e1:s1:image",
             "kind": "image",
             "title": "e1.s1.image",
             "uploadId": "00000000-0000-4000-8000-000000000007"
@@ -322,7 +322,7 @@
         "outputs": [
           {
             "slot": "line-1",
-            "assetKey": "e1.s1.line1",
+            "assetKey": "production:e1:s1:dialogue:1",
             "kind": "audio",
             "title": "e1.s1.line1",
             "uploadId": "00000000-0000-4000-8000-000000000011"
@@ -338,12 +338,12 @@
         "sceneId": "station",
         "description": "Mei reaches the platform as the doors close.",
         "firstFrame": {
-          "assetKey": "e1.s1.image",
+          "assetKey": "production:e1:s1:image",
           "kind": "image",
           "versionId": "00000000-0000-4000-8000-000000000008"
         },
         "lastFrame": {
-          "assetKey": "e1.s2.image",
+          "assetKey": "production:e1:s2:image",
           "kind": "image",
           "versionId": "00000000-0000-4000-8000-000000000009"
         },
@@ -356,7 +356,7 @@
             "delivery": "lip_sync",
             "text": "Wait for me!",
             "audio": {
-              "assetKey": "e1.s1.line1",
+              "assetKey": "production:e1:s1:dialogue:1",
               "kind": "audio",
               "versionId": "00000000-0000-4000-8000-000000000010"
             }
@@ -372,7 +372,7 @@
         "outputs": [
           {
             "slot": "main",
-            "assetKey": "e1.s1.video",
+            "assetKey": "production:e1:s1:video",
             "kind": "video",
             "title": "e1.s1.video",
             "uploadId": "00000000-0000-4000-8000-000000000013"
@@ -405,7 +405,7 @@
         "outputs": [
           {
             "slot": "cue-1",
-            "assetKey": "e1.s1.cue1",
+            "assetKey": "production:e1:s1:sound:1",
             "kind": "audio",
             "title": "e1.s1.cue1",
             "uploadId": "00000000-0000-4000-8000-000000000015"
@@ -422,7 +422,7 @@
           {
             "shotNumber": 1,
             "video": {
-              "assetKey": "e1.s1.video",
+              "assetKey": "production:e1:s1:video",
               "kind": "video",
               "versionId": "00000000-0000-4000-8000-000000000014"
             },
@@ -436,7 +436,7 @@
                 "delivery": "lip_sync",
                 "text": "Wait for me!",
                 "audio": {
-                  "assetKey": "e1.s1.line1",
+                  "assetKey": "production:e1:s1:dialogue:1",
                   "kind": "audio",
                   "versionId": "00000000-0000-4000-8000-000000000010"
                 }
@@ -446,7 +446,7 @@
               {
                 "cueId": "cue-1",
                 "audio": {
-                  "assetKey": "e1.s1.cue1",
+                  "assetKey": "production:e1:s1:sound:1",
                   "kind": "audio",
                   "versionId": "00000000-0000-4000-8000-000000000016"
                 }
@@ -460,21 +460,21 @@
         "outputs": [
           {
             "slot": "video",
-            "assetKey": "e1.video",
+            "assetKey": "production:e1:video",
             "kind": "video",
             "title": "e1.video",
             "uploadId": "00000000-0000-4000-8000-000000000017"
           },
           {
             "slot": "subtitles",
-            "assetKey": "e1.subtitles",
+            "assetKey": "production:e1:subtitles",
             "kind": "subtitles",
             "title": "e1.subtitles",
             "uploadId": "00000000-0000-4000-8000-000000000018"
           },
           {
             "slot": "timeline",
-            "assetKey": "e1.timeline",
+            "assetKey": "production:e1:timeline",
             "kind": "timeline",
             "title": "e1.timeline",
             "uploadId": "00000000-0000-4000-8000-000000000019"

@@ -1,16 +1,18 @@
+from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4, uuid5
 
 import pytest
 from django.contrib.auth.models import Group
 from django.db import connection
+from django.utils import timezone
 
 from contracts import production_v1 as v1
 from production.models import Episode, Project, Shot
 from production.services import create_project
 from scheduler.models import Dispatch, DispatchKind, Execution, ExecutionState, Schedule, Task, TaskState
-from scheduler.service import StateConflict
-from scheduler.tasks import Completed, PlanError
+from scheduler.service import PROVIDER_CHECK, StateConflict
+from scheduler.tasks import Completed, Failed, PlanError
 from scheduler.worker import Worker, configured_scheduler
 
 
@@ -33,7 +35,10 @@ def fake_result(task_type, inp):
     data, outputs = {}, []
     episode = inp.get("episodeNumber", 0)
     shot = inp.get("shotNumber", 0)
-    prefix = f"e{episode}.s{shot}"
+
+    def shot_key(role, position=None):
+        return v1.production_asset_key(episode, role, shot_number=shot, position=position)
+
     if task_type == "series_plan":
         data = {
             "title": "Night Service", "world": "A night train takes a secret route.",
@@ -59,21 +64,30 @@ def fake_result(task_type, inp):
         outputs = [descriptor(slot, asset["assetKey"], asset["kind"]) for slot in ("candidate", "chosen")]
     elif task_type == "shot_image":
         data = {"selectedSlot": "chosen"}
-        outputs = [descriptor(slot, f"{prefix}.image", "image") for slot in ("candidate", "chosen")]
+        outputs = [descriptor(slot, shot_key("image"), "image") for slot in ("candidate", "chosen")]
     elif task_type == "shot_dialogue":
         data = {"takes": [
             {"lineId": "line-1", "slot": "line-1", "startMs": 100, "endMs": 2100, "durationMs": 2000},
             {"lineId": "line-2", "slot": "line-2", "startMs": 2200, "endMs": 3000, "durationMs": 800},
         ]}
-        outputs = [descriptor(take["slot"], f"{prefix}.{take['slot']}", "audio") for take in data["takes"]]
+        outputs = [
+            descriptor(take["slot"], shot_key("dialogue", position), "audio")
+            for position, take in enumerate(data["takes"], 1)
+        ]
     elif task_type == "shot_video":
         data = {"selectedSlot": "main", "durationMs": inp["targetDurationMs"]}
-        outputs = [descriptor("main", f"{prefix}.video", "video")]
+        outputs = [descriptor("main", shot_key("video"), "video")]
     elif task_type == "shot_sound":
         data = {"takes": [{"cueId": cue["cueId"], "slot": cue["cueId"]} for cue in inp["sound"]]}
-        outputs = [descriptor(take["slot"], f"{prefix}.{take['slot']}", "audio") for take in data["takes"]]
+        outputs = [
+            descriptor(take["slot"], shot_key("sound", position), "audio")
+            for position, take in enumerate(data["takes"], 1)
+        ]
     elif task_type == "episode_edit":
-        outputs = [descriptor(slot, f"e{episode}.{slot}", kind) for slot, kind in v1.DELIVERY_KINDS.items()]
+        outputs = [
+            descriptor(slot, v1.production_asset_key(episode, slot), kind)
+            for slot, kind in v1.DELIVERY_KINDS.items()
+        ]
     else:
         raise AssertionError(task_type)
     return Completed({"data": data, "outputs": outputs})
@@ -349,3 +363,41 @@ def test_invalid_result_blocks_before_recording_and_can_retry():
     assert p.scheduler.submit_workflow_result(request.execution_id, fake_result(request.task_type, inp)) == "expired"
     p.finish_type("series_plan", 1)
     assert project.episodes.count() == 2
+
+
+def test_provider_busy_retries_after_confirmation_until_attempts_are_exhausted():
+    p = Pipeline()
+    project, _ = create_project(IDEA)
+    p.scheduler.set_enabled(project.pk, True)
+    p.idle()
+
+    [(first, original_input)] = p.requests("series_plan")
+    p.scheduler.register_provider_job(first.execution_id, "plan", "example", "remote-1")
+    failure = Failed("provider_busy")
+    assert p.scheduler.submit_workflow_result(first.execution_id, failure) == "applied"
+    p.pending.pop(first.execution_id)
+    task = Task.objects.get(pk=first.task_id)
+    assert task.blocked_reason == PROVIDER_CHECK and task.retry_at is None
+    assert p.scheduler.claim_next(schedule_id=project.pk) is None
+
+    jobs = Execution.objects.get(pk=first.execution_id).provider_jobs
+    p.scheduler.confirm_provider_jobs_inactive(first.execution_id, jobs=jobs)
+    seen = {first.execution_id}
+    for attempt in (2, 3):
+        task.refresh_from_db()
+        assert task.state == TaskState.WAITING and not task.blocked_reason
+        assert task.retry_at > timezone.now()
+        Task.objects.filter(pk=task.id).update(retry_at=timezone.now() - timedelta(seconds=1))
+        p.idle()
+        [(request, inputs)] = p.requests("series_plan")
+        assert (request.task_id, inputs) == (task.id, original_input)
+        assert request.execution_id not in seen
+        seen.add(request.execution_id)
+        assert p.scheduler.submit_workflow_result(request.execution_id, failure) == "applied"
+        p.pending.pop(request.execution_id)
+        task.refresh_from_db()
+        assert task.attempt_count == attempt
+
+    assert task.state == TaskState.WAITING and task.blocked_reason == "provider_busy"
+    assert task.retry_at is None
+    assert p.scheduler.claim_next(schedule_id=project.pk) is None

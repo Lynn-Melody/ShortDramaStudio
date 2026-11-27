@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from contracts import production_v1 as v1
-from scheduler.tasks import BaseTask, Failed
+from scheduler.tasks import BaseTask, Failed, RetryPolicy
 
 from .completion import record_workflow_completion
 
@@ -9,6 +9,7 @@ from .completion import record_workflow_completion
 class WorkflowLeaf(BaseTask):
     definition_version = v1.VERSION
     timeout = timedelta(minutes=30)
+    retry_policy = RetryPolicy(retryable_error_codes=v1.RETRYABLE_ERROR_CODES)
     workflow_completion_handler = staticmethod(record_workflow_completion)
 
     def on_init(self):

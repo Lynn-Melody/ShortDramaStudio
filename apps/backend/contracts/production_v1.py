@@ -5,6 +5,8 @@ from rest_framework.exceptions import ValidationError
 
 
 VERSION = "1"
+RETRYABLE_ERROR_CODES = frozenset({"provider_busy"})
+PRODUCTION_ASSET_PREFIX = "production:"
 MAX_DURATION_MS = 86_400_000
 KINDS = ("character", "scene", "prop")
 DELIVERY_KINDS = {"video": "video", "subtitles": "subtitles", "timeline": "timeline"}
@@ -57,11 +59,26 @@ def ordered_unique(items, key):
     return items
 
 
+def production_asset_key(episode_number, role, *, shot_number=None, position=None):
+    parts = [f"{PRODUCTION_ASSET_PREFIX}e{episode_number}"]
+    if shot_number is not None:
+        parts.append(f"s{shot_number}")
+    parts.append(role)
+    if position is not None:
+        parts.append(str(position))
+    return ":".join(parts)
+
+
 class AssetSpec(Object):
     assetKey = Identifier()
     kind = s.ChoiceField(choices=KINDS)
     title = Text(max_length=200)
     description = Text()
+
+    def validate_assetKey(self, key):
+        if key.startswith(PRODUCTION_ASSET_PREFIX):
+            raise ValidationError("This prefix is reserved for production outputs.")
+        return key
 
 
 class AssetRef(Object):
@@ -320,6 +337,11 @@ def _validate_breakdown(data, inputs):
             raise ValidationError("Each shot asset key must identify a declared asset.")
 
 
+def _validate_asset_keys(slots, expected):
+    if {slot: item["assetKey"] for slot, item in slots.items()} != expected:
+        raise ValidationError({"outputs": "Asset keys must match the output scope and role."})
+
+
 def _validate_takes(data, inputs, slots, *, input_key, id_key):
     takes = data["takes"]
     if [take[id_key] for take in takes] != [item[id_key] for item in inputs[input_key]]:
@@ -328,6 +350,12 @@ def _validate_takes(data, inputs, slots, *, input_key, id_key):
         raise ValidationError("Every take must use a distinct declared output slot.")
     if any(output["kind"] != "audio" for output in slots.values()):
         raise ValidationError("All takes require audio outputs.")
+    _validate_asset_keys(slots, {
+        take["slot"]: production_asset_key(
+            inputs["episodeNumber"], input_key, shot_number=inputs["shotNumber"], position=position,
+        )
+        for position, take in enumerate(takes, 1)
+    })
     if input_key == "dialogue":
         if any(left["endMs"] > right["startMs"] for left, right in zip(takes, takes[1:])):
             raise ValidationError("Dialogue takes must be chronological and non-overlapping.")
@@ -346,6 +374,9 @@ def validate_leaf_success(task_type, inputs, value):
     elif task_type == "episode_edit":
         if {slot: item["kind"] for slot, item in slots.items()} != DELIVERY_KINDS:
             raise ValidationError("Edit must deliver video, subtitles and timeline.")
+        _validate_asset_keys(slots, {
+            slot: production_asset_key(inputs["episodeNumber"], slot) for slot in DELIVERY_KINDS
+        })
     elif task_type == "shot_dialogue":
         _validate_takes(data, inputs, slots, input_key="dialogue", id_key="lineId")
     elif task_type == "shot_sound":
@@ -355,8 +386,10 @@ def validate_leaf_success(task_type, inputs, value):
         kind = asset["kind"] if asset else {"shot_image": "image", "shot_video": "video"}[task_type]
         if data["selectedSlot"] not in slots or any(item["kind"] != kind for item in slots.values()):
             raise ValidationError("Candidates must match the output kind and include the selected slot.")
-        if asset and any(item["assetKey"] != asset["assetKey"] for item in slots.values()):
-            raise ValidationError("Candidate asset keys must match the requested asset.")
+        key = asset["assetKey"] if asset else production_asset_key(
+            inputs["episodeNumber"], kind, shot_number=inputs["shotNumber"],
+        )
+        _validate_asset_keys(slots, dict.fromkeys(slots, key))
         if task_type == "shot_video" and data["durationMs"] < inputs["targetDurationMs"]:
             raise ValidationError("The selected video must cover the requested duration.")
     return {**output, "data": data}

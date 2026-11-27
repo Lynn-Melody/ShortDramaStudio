@@ -48,3 +48,36 @@ def test_duplicate_delivery_slot_and_wrong_kind_are_rejected():
     example["result"]["outputs"][1]["kind"] = "video"
     with pytest.raises(ValidationError):
         validate_leaf_success("episode_edit", example["input"], example["result"])
+
+
+@pytest.mark.parametrize(("task_type", "wrong_key"), [
+    ("shot_image", "station"),
+    ("shot_image", "production:e1:s2:image"),
+    ("shot_video", "production:e1:s1:image"),
+    ("shot_dialogue", "production:e1:s1:sound:1"),
+    ("shot_sound", "production:e1:s1:sound:2"),
+    ("episode_edit", "production:e2:video"),
+])
+def test_derived_artifacts_reject_keys_from_other_assets(task_type, wrong_key):
+    example = deepcopy(SAMPLES["tasks"][task_type])
+    example["result"]["outputs"][0]["assetKey"] = wrong_key
+    with pytest.raises(ValidationError, match="must match the output scope and role"):
+        validate_leaf_success(task_type, example["input"], example["result"])
+
+
+def test_visual_asset_cannot_use_the_reserved_production_prefix():
+    inputs = deepcopy(SAMPLES["tasks"]["scene_asset"]["input"])
+    inputs["asset"]["assetKey"] = "production:e1:s1:image"
+    with pytest.raises(ValidationError, match="reserved for production outputs"):
+        validate_leaf_input("scene_asset", inputs)
+
+
+def test_shot_image_candidates_share_one_asset_key():
+    example = deepcopy(SAMPLES["tasks"]["shot_image"])
+    result = example["result"]
+    candidate = {**result["outputs"][0], "slot": "alternate", "uploadId": "00000000-0000-4000-8000-000000000099"}
+    result["outputs"].append(candidate)
+    assert validate_leaf_success("shot_image", example["input"], result) == result
+    candidate["assetKey"] = "production:e1:s2:image"
+    with pytest.raises(ValidationError, match="must match the output scope and role"):
+        validate_leaf_success("shot_image", example["input"], result)
