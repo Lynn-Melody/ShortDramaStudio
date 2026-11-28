@@ -20,12 +20,13 @@ API 环境设置 `STUDIO_WORKFLOW_SERVICE_TOKEN`，n8n 的出站 HTTP 节点使�
 | --- | --- |
 | POST `/accept` | 原子领取并返回一次固定输入。其他状态为 `already_accepted`、`already_processed`、`expired`、`not_ready` |
 | GET `/status` | 每次发起付费或耗时步骤前检查 `active`。仅当前、已接收且在截止时间内的执行返回 `true` |
+| POST `/uploads` | 为当前执行的输出槽位申请私有对象上传授权，返回 `uploadId`、签名 PUT 地址和所需请求头 |
 | POST `/result` | `outcome: completed` 携带 `data` 和 `outputs`，`outcome: failed` 携带 `errorCode` 与 `message`。返回 `applied`、`already_processed`、`expired` 或 `not_accepted` |
 | PUT `/provider-jobs/{stepKey}` | 取得供应商作业 ID 后立即登记。同一步骤重传相同供应商和 ID 返回 204，冲突返回 409。支持当前超时执行补报 |
 | GET `/provider-check` | 用核查身份读取是否待核查及当前持久化作业快照 |
 | POST `/provider-check` | 用核查身份提交已核查的完整快照。确认成功返回 204，记录变更或执行已不待核查返回 409 |
 
-回调信封或产物描述格式错误返回 400。`provider_jobs_unverified` 是调度器的保留状态，工作流回调使用自己的错误码。业务数据由生产叶子校验，调度器持久化叶子判定的 `invalid_workflow_result`，回调响应为 `applied`。当前执行超时后仍可采纳有效的晚到成功结果。合法的非空媒体输出进入 T04 登记边界，登记接通前返回 503，工作流可使用相同执行重试。结构化叶子以空 `outputs` 完成。
+回调信封或产物描述格式错误返回 400。`provider_jobs_unverified` 是调度器的保留状态，工作流回调使用自己的错误码。业务数据由生产叶子校验，调度器持久化叶子判定的 `invalid_workflow_result`，回调响应为 `applied`。当前执行超时后仍可采纳有效的晚到成功结果。结构化叶子以空 `outputs` 完成。媒体输出的授权、回调错误及重试见[素材与交付接入](media-integration.md)。
 
 核查方先从 n8n 执行记录确认工作流已停止且无法发出新的供应商请求，再按执行及步骤关联键确认在途请求已查清、供应商作业不会再产出。只有三项均有证据时，才以 `workflowStopped`、`requestsSettled`、`jobsInactive` 均为 `true` 的请求提交实际核查的作业快照。空作业列表仍需完成前两项核查。证据不明时，执行保持待核查。晚到登记导致快照变化时，读取新快照并核查新增作业。
 

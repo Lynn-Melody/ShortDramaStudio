@@ -41,6 +41,7 @@ def test_readiness_and_worker_use_postgresql_18(client):
         "/internal/v1/health",
         "/internal/v1/executions/{executionId}/accept",
         "/internal/v1/executions/{executionId}/status",
+        "/internal/v1/executions/{executionId}/uploads",
         "/internal/v1/executions/{executionId}/result",
         "/internal/v1/executions/{executionId}/provider-jobs/{stepKey}",
         "/internal/v1/executions/{executionId}/provider-check",

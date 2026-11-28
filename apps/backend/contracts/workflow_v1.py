@@ -1,7 +1,7 @@
 from rest_framework import serializers as s
 from rest_framework.exceptions import ValidationError
 
-from .production_v1 import VERSION, Identifier, Object, Success, Text, UUID, ordered_unique
+from .production_v1 import VERSION, Identifier, Integer, Object, Success, Text, UUID, ordered_unique
 
 
 class ExecutionScope(Object):
@@ -26,6 +26,21 @@ class WorkflowAcceptance(Object):
 
 class WorkflowStatus(Object):
     active = s.BooleanField(help_text="True while the workflow is accepted, current and before its deadline.")
+
+
+class WorkflowUploadRequest(ExecutionIdentity):
+    slot = Identifier()
+    sizeBytes = Integer(min_value=1, max_value=5 * 1024**3)
+    contentType = s.RegexField(regex=r"\A[a-zA-Z0-9!#$&^_.+-]+/[a-zA-Z0-9!#$&^_.+-]+\Z", max_length=200)
+
+
+class WorkflowUploadGrant(Object):
+    uploadId = UUID()
+    objectKey = s.CharField()
+    method = s.ChoiceField(choices=["PUT"])
+    url = s.URLField()
+    headers = s.DictField(child=s.CharField())
+    expiresAt = s.DateTimeField()
 
 
 class WorkflowCompleted(ExecutionIdentity, Success):

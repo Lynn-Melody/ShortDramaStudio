@@ -188,7 +188,7 @@ def test_failed_result_with_registered_job_waits_for_verification(pending, clien
     assert scheduler.claim_next() is None
 
 
-def test_leaf_validation_and_media_registration_boundary(pending, clients):
+def test_leaf_validation_and_unassigned_media_upload(pending, clients):
     project, execution, scheduler = pending
     workflow, _ = clients
     body = identity(execution)
@@ -212,7 +212,7 @@ def test_leaf_validation_and_media_registration_boundary(pending, clients):
     body = identity(asset)
     workflow.post(endpoint(asset, "accept"), body, format="json")
     result = {**body, "outcome": "completed", **EXAMPLES["scene_asset"]["result"]}
-    assert workflow.post(endpoint(asset, "result"), result, format="json").status_code == 503
+    assert workflow.post(endpoint(asset, "result"), result, format="json").status_code == 400
     asset.refresh_from_db()
     assert asset.state == ExecutionState.ACCEPTED
     assert asset.result is None

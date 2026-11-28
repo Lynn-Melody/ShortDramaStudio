@@ -10,6 +10,7 @@ PRODUCTION_ASSET_PREFIX = "production:"
 MAX_DURATION_MS = 86_400_000
 KINDS = ("character", "scene", "prop")
 DELIVERY_KINDS = {"video": "video", "subtitles": "subtitles", "timeline": "timeline"}
+DATA_ONLY_LEAVES = ("series_plan", "episode_script", "episode_breakdown")
 
 
 class Object(s.Serializer):
@@ -366,7 +367,7 @@ def validate_leaf_success(task_type, inputs, value):
     data = validated(LEAVES[task_type][2], output["data"])
     slots = {item["slot"]: item for item in output["outputs"]}
 
-    if task_type in ("series_plan", "episode_script", "episode_breakdown"):
+    if task_type in DATA_ONLY_LEAVES:
         if slots:
             raise ValidationError("This leaf only produces structured data.")
         if task_type == "episode_breakdown":
