@@ -1,28 +1,21 @@
-import json
-from http.client import HTTPException, InvalidURL
-from urllib.error import HTTPError
+import asyncio
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+import httpx
 from django.conf import settings
 from django.utils import timezone
 
 from scheduler.worker import DeliveryError, WorkflowRequest
 
 
-class RejectRedirects(HTTPRedirectHandler):
-    def redirect_request(self, request, fp, code, msg, headers, newurl):
-        return None
-
-
-webhooks = build_opener(ProxyHandler({}), RejectRedirects())
+async def _post_webhook(url, payload, headers, timeout):
+    async with asyncio.timeout(timeout):
+        async with httpx.AsyncClient(timeout=None, follow_redirects=False, trust_env=False) as client:
+            async with client.stream("POST", url, json=payload, headers=headers) as response:
+                return response.status_code
 
 
 def dispatch_workflow(workflow: WorkflowRequest):
-    remaining = (workflow.deadline_at - timezone.now()).total_seconds()
-    if remaining <= 0:
-        raise DeliveryError("workflow_deadline_elapsed", retryable=False)
-
     url = settings.N8N_WEBHOOKS.get(workflow.name)
     if not isinstance(url, str) or not url:
         raise DeliveryError("workflow_webhook_missing", retryable=False)
@@ -45,19 +38,23 @@ def dispatch_workflow(workflow: WorkflowRequest):
         "schemaVersion": workflow.definition_version,
         "deadlineAt": workflow.deadline_at.isoformat(),
     }
-    request = Request(url, data=json.dumps(payload).encode(), headers={
-        "Content-Type": "application/json",
+    headers = {
         "Idempotency-Key": workflow.idempotency_key,
         "X-Studio-Dispatch-Token": settings.N8N_DISPATCH_TOKEN,
-    }, method="POST")
+    }
+    # Close the event loop without waiting on an OS DNS lookup after cancellation.
+    loop = asyncio.new_event_loop()
     try:
-        with webhooks.open(request, timeout=min(5, remaining)):
-            pass
-    except HTTPError as exc:
-        exc.close()
-        retryable = exc.code in (408, 425, 429) or 500 <= exc.code < 600
-        raise DeliveryError(f"workflow_http_{exc.code}", retryable=retryable) from exc
-    except (ValueError, InvalidURL) as exc:
+        remaining = (workflow.deadline_at - timezone.now()).total_seconds()
+        if remaining <= 0:
+            raise DeliveryError("workflow_deadline_elapsed", retryable=False)
+        status = loop.run_until_complete(_post_webhook(url, payload, headers, min(5, remaining)))
+    except (httpx.InvalidURL, httpx.LocalProtocolError) as exc:
         raise DeliveryError("workflow_webhook_invalid", retryable=False) from exc
-    except (OSError, HTTPException) as exc:
+    except (TimeoutError, httpx.RequestError) as exc:
         raise DeliveryError("workflow_transport_failed") from exc
+    finally:
+        loop.close()
+    if not 200 <= status < 300:
+        retryable = status in (408, 425, 429) or 500 <= status < 600
+        raise DeliveryError(f"workflow_http_{status}", retryable=retryable)

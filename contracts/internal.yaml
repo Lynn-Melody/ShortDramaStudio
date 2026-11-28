@@ -604,6 +604,8 @@ components:
           $ref: '#/components/schemas/WorkflowFailedOutcomeEnum'
         errorCode:
           type: string
+          description: Stable workflow code. provider_jobs_unverified is reserved
+            for the scheduler.
           maxLength: 100
           pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
         message:

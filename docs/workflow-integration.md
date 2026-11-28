@@ -6,7 +6,7 @@
 
 在 Worker 环境中设置 `STUDIO_N8N_WEBHOOKS`，值为工作流名到生产 Webhook 完整 URL 的 JSON 对象。例如 `{"series_plan":"http://n8n:5678/webhook/t03-series-plan-smoke"}`。工作流名见[生产接入](production-integration.md)。空配置时 Worker 仍处理本地任务，工作流派发保留在 outbox 中直至配置或执行过期。启用映射后，缺少某个工作流地址会记录 `workflow_webhook_missing`，配置修正后可显式重试该任务。
 
-Worker 通过 POST 发送身份、任务类型及截止时间。稳定的 `Idempotency-Key` 就是 `executionId`。将 Worker 的 `STUDIO_N8N_DISPATCH_TOKEN` 配为 n8n Webhook 的 Header Auth 凭据，头名为 `X-Studio-Dispatch-Token`。同次执行在传输重试中保留原执行 ID 和截止时间。单次请求的连接与读取超时取剩余时间和 5 秒中的较小值。网络错误、HTTP 408、425、429 和 5xx 可退避重传，其他非 2xx 状态终止当次派发，重定向也视为派发失败。
+Worker 通过 POST 发送身份、任务类型及截止时间。稳定的 `Idempotency-Key` 就是 `executionId`。将 Worker 的 `STUDIO_N8N_DISPATCH_TOKEN` 配为 n8n Webhook 的 Header Auth 凭据，头名为 `X-Studio-Dispatch-Token`。同次执行在传输重试中保留原执行 ID 和截止时间。整次请求从连接到收到响应头共享一个超时，取剩余时间和 5 秒中的较小值。网络错误、HTTP 408、425、429 和 5xx 可退避重传，其他非 2xx 状态终止当次派发，重定向也视为派发失败。
 
 n8n 的首个业务动作是调用平台 `accept`。取得接收状态后，通过 Respond to Webhook 响应派发。只有 `accepted` 带有不可变的 `input`，也只有这一状态可继续执行业务。重复派发获得的 `already_accepted` 或 `already_processed` 可直接结束。
 
@@ -25,6 +25,8 @@ API 环境设置 `STUDIO_WORKFLOW_SERVICE_TOKEN`，n8n 的出站 HTTP 节点使�
 | GET `/provider-check` | 用核查身份读取是否待核查及当前持久化作业快照 |
 | POST `/provider-check` | 用核查身份提交已核查的完整快照。确认成功返回 204，记录变更或执行已不待核查返回 409 |
 
-回调信封或产物描述格式错误返回 400。业务数据由生产叶子校验，调度器持久化叶子判定的 `invalid_workflow_result`，回调响应为 `applied`。当前执行超时后仍可采纳有效的晚到成功结果。合法的非空媒体输出进入 T04 登记边界，登记接通前返回 503，工作流可使用相同执行重试。结构化叶子以空 `outputs` 完成。
+回调信封或产物描述格式错误返回 400。`provider_jobs_unverified` 是调度器的保留状态，工作流回调使用自己的错误码。业务数据由生产叶子校验，调度器持久化叶子判定的 `invalid_workflow_result`，回调响应为 `applied`。当前执行超时后仍可采纳有效的晚到成功结果。合法的非空媒体输出进入 T04 登记边界，登记接通前返回 503，工作流可使用相同执行重试。结构化叶子以空 `outputs` 完成。
 
 核查方先从 n8n 执行记录确认工作流已停止且无法发出新的供应商请求，再按执行及步骤关联键确认在途请求已查清、供应商作业不会再产出。只有三项均有证据时，才以 `workflowStopped`、`requestsSettled`、`jobsInactive` 均为 `true` 的请求提交实际核查的作业快照。空作业列表仍需完成前两项核查。证据不明时，执行保持待核查。晚到登记导致快照变化时，读取新快照并核查新增作业。
+
+供应商请求已发出、接单状态未知且暂时无法取得作业 ID 时，工作流保留该执行，让它超时后进入核查。只有确认供应商未接单、或已登记待核查的作业 ID，才可回调 `provider_busy`。

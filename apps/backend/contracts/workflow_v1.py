@@ -34,7 +34,7 @@ class WorkflowCompleted(ExecutionIdentity, Success):
 
 class WorkflowFailed(ExecutionIdentity):
     outcome = s.ChoiceField(choices=["failed"])
-    errorCode = Identifier()
+    errorCode = Identifier(help_text="Stable workflow code. provider_jobs_unverified is reserved for the scheduler.")
     message = Text(max_length=4000, allow_blank=True)
 
 

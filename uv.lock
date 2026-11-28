@@ -3,6 +3,19 @@ revision = 5
 requires-python = "==3.14.*"
 
 [[package]]
+name = "anyio"
+version = "4.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "idna" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a1/98/7e457a3b014976887a050561955c0b76e1e7e2d6e27b78ecef2ef80518f2/anyio-4.16.0.tar.gz", hash = "sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb", size = 310971, upload-time = "2026-11-01T11:20:07.282Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/16/7757fb84c819accc7d7e9af5291b261e4abb8627ee040f99e7d35ef2457a/anyio-4.16.0-py3-none-any.whl", hash = "sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026", size = 134521, upload-time = "2026-11-01T11:20:05.59Z" },
+]
+
+[[package]]
 name = "asgiref"
 version = "3.13.0"
 source = { registry = "https://pypi.org/simple" }
@@ -46,6 +59,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c2/c1/8a229eab793d4ad48bdc5a04d6a2e6edd861c45c22e90d45c0337fcbf83a/botocore-1.44.12.tar.gz", hash = "sha256:5806bb66bf167fa3172f4ddf78b088db9b22653702537b19969d02d2c3301ee5", size = 17227950, upload-time = "2026-11-25T20:18:12.626Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/34/62d784f432cd59f23b5ee2022d371f12a1907c101998d771975f484c8d7f/botocore-1.44.12-py3-none-any.whl", hash = "sha256:d5df4cf868f2c4050999a0e6bc94e0a039017e719f4e27b2a8e87053856787b9", size = 16930223, upload-time = "2026-11-25T20:18:09.433Z" },
+]
+
+[[package]]
+name = "certifi"
+version = "2026.11.20"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/33/4cd27639502f010084bcef7a2036391dd637439901341ce1a530f36f6e51/certifi-2026.11.20.tar.gz", hash = "sha256:af1cb240a8133f105aa52684a3a3258339d7f2fd0bd4e2812698ff5cf5588c4e", size = 128901, upload-time = "2026-11-20T23:37:49.522Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/39/5eec3296860b94ac20bb8ed807725b88f6adfab3f343df592afd975f5f86/certifi-2026.11.20-py3-none-any.whl", hash = "sha256:7422df25243767b9877031a2248cb14d09ddac9beee846f4cef3d5c9191d488f", size = 127913, upload-time = "2026-11-20T23:37:48.117Z" },
 ]
 
 [[package]]
@@ -98,6 +120,52 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/50/43/41d25039a6a53545420ebc98eb9f877ec9fe30c7bd03fefabcaf9b953af7/drf_spectacular-0.30.0.tar.gz", hash = "sha256:53e79e7ba00e240441b63c32273754a5368e4c2ab44a19f2595277cc1cd559c9", size = 252311, upload-time = "2026-07-06T11:29:46.264Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c3/56/74dd7b45bbde6d24494220b98d6961cb1200b63a1800332b430daa2c4551/drf_spectacular-0.30.0-py3-none-any.whl", hash = "sha256:006cf5921ebe20a9bd24f7c846261ebbf78780be5961b0d6e87afaa82afd62ff", size = 111150, upload-time = "2026-07-06T11:29:45.12Z" },
+]
+
+[[package]]
+name = "h11"
+version = "0.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1", size = 101250, upload-time = "2025-04-24T03:35:25.427Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
+]
+
+[[package]]
+name = "httpcore"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "h11" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz", hash = "sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8", size = 85484, upload-time = "2025-04-24T22:06:22.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/f5/f66802a942d491edb555dd61e3a9961140fd64c90bce1eafd741609d334d/httpcore-1.0.9-py3-none-any.whl", hash = "sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55", size = 78784, upload-time = "2025-04-24T22:06:20.566Z" },
+]
+
+[[package]]
+name = "httpx"
+version = "0.29.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "certifi" },
+    { name = "httpcore" },
+    { name = "idna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/d5/b4d2c4d397b7c0222635cd069098f232fb5cba31f6749e77b339e263b52c/httpx-0.29.0.tar.gz", hash = "sha256:700928ee6c1f4213795e67c47eba8f8553639069fea89199f71d654e38edc593", size = 141642, upload-time = "2026-11-26T15:58:37.028Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/c6/dddba524648da23345e446e6413530474e19e44122dba752d34ae7c4ae57/httpx-0.29.0-py3-none-any.whl", hash = "sha256:6734dcf742ced6e8018e45d3f9f7728975b6b3e1085a24f3e2c056069d858bd1", size = 73532, upload-time = "2026-11-26T15:58:35.703Z" },
+]
+
+[[package]]
+name = "idna"
+version = "3.20"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44", size = 216463, upload-time = "2026-09-17T14:11:04.752Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c", size = 69583, upload-time = "2026-09-17T14:11:03.168Z" },
 ]
 
 [[package]]
@@ -353,6 +421,7 @@ dependencies = [
     { name = "django" },
     { name = "djangorestframework" },
     { name = "drf-spectacular" },
+    { name = "httpx" },
     { name = "psycopg", extra = ["binary"] },
 ]
 
@@ -368,6 +437,7 @@ requires-dist = [
     { name = "django", specifier = ">=5.2.8,<5.3" },
     { name = "djangorestframework", specifier = ">=3.16,<4" },
     { name = "drf-spectacular", specifier = ">=0.29,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3,<4" },
 ]
 
@@ -393,6 +463,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7e/e0/361c764ea58cc1a75f7b4b424a74b08449db8bfa5e9199c7275999fdd1b9/sqlparse-0.6.1.tar.gz", hash = "sha256:ca722573f848ff2d30e40ea30f53a104b7dea7635ea9285891263eb2c58fb6e7", size = 182236, upload-time = "2026-11-01T18:06:45.951Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/ff/2fee788e82e75be8f210c65c5d103bf44c880e3769c884652a4cd911b8ba/sqlparse-0.6.1-py3-none-any.whl", hash = "sha256:3be5a72d04c873d690d7c6dedd33d6fae2ef82759881ceec02fc2efd0cba564f", size = 51200, upload-time = "2026-11-01T18:06:47.434Z" },
+]
+
+[[package]]
+name = "typing-extensions"
+version = "4.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
 ]
 
 [[package]]

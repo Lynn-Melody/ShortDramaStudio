@@ -81,6 +81,8 @@ class SubmitWorkflowResult(WorkflowView):
                 outcome = Completed({"data": data["data"], "outputs": data["outputs"]})
             case "failed":
                 data = validated(v1.WorkflowFailed, request.data)
+                if data["errorCode"] == PROVIDER_CHECK:
+                    raise ValidationError({"errorCode": "This code is reserved for the scheduler."})
                 outcome = Failed(data["errorCode"], data["message"])
             case _:
                 raise ValidationError({"outcome": "Expected completed or failed."})

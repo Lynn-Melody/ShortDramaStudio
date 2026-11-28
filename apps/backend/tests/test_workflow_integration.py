@@ -1,8 +1,10 @@
 import json
 from datetime import timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import MagicMock
-from urllib.error import HTTPError
+from threading import Event, Thread
+from time import monotonic
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -13,7 +15,7 @@ from rest_framework.test import APIClient
 from production.services import create_project
 from scheduler.models import Dispatch, DispatchKind, ExecutionState, Task, TaskState
 from scheduler.service import PROVIDER_CHECK
-from scheduler.worker import Worker, configured_scheduler
+from scheduler.worker import DeliveryError, Worker, WorkflowRequest, configured_scheduler
 from studio import n8n
 
 
@@ -173,6 +175,8 @@ def test_failed_result_with_registered_job_waits_for_verification(pending, clien
     assert workflow.put(endpoint(execution, "provider-jobs/plan"), job, format="json").status_code == 204
     failed = {**body, "outcome": "failed", "errorCode": "provider_busy", "message": "Try again later."}
     result_url = endpoint(execution, "result")
+    reserved = {**failed, "errorCode": PROVIDER_CHECK}
+    assert workflow.post(result_url, reserved, format="json").status_code == 400
     assert workflow.post(result_url, failed, format="json").json() == {"status": "applied"}
     assert workflow.post(result_url, failed, format="json").json() == {"status": "already_processed"}
     execution.refresh_from_db()
@@ -220,8 +224,8 @@ def test_normal_worker_retries_same_webhook_delivery(pending, settings, monkeypa
     url = "http://n8n:5678/webhook/series_plan"
     settings.N8N_WEBHOOKS = {"series_plan": url}
     settings.N8N_DISPATCH_TOKEN = "dispatch-token"
-    opener = MagicMock(side_effect=[TimeoutError(), HTTPError(url, 503, "", {}, None), MagicMock()])
-    monkeypatch.setattr(n8n.webhooks, "open", opener)
+    post = AsyncMock(side_effect=[TimeoutError(), 503, 200])
+    monkeypatch.setattr(n8n, "_post_webhook", post)
     dispatch = Dispatch.objects.get(execution=execution, kind=DispatchKind.WORKFLOW)
     for failures in [1, 2]:
         call_command("run_scheduler", once=True)
@@ -232,16 +236,15 @@ def test_normal_worker_retries_same_webhook_delivery(pending, settings, monkeypa
     call_command("run_scheduler", once=True)
     dispatch.refresh_from_db()
     assert dispatch.delivered_at is not None
-    assert opener.call_count == 3
-    for call in opener.call_args_list:
-        request = call.args[0]
-        assert request.full_url == url and request.get_method() == "POST"
-        assert request.get_header("Idempotency-key") == str(execution.id)
-        assert request.get_header("X-studio-dispatch-token") == "dispatch-token"
-        assert json.loads(request.data) == {
+    assert post.await_count == 3
+    for call in post.await_args_list:
+        webhook_url, payload, headers, timeout = call.args
+        assert webhook_url == url
+        assert headers == {"Idempotency-Key": str(execution.id), "X-Studio-Dispatch-Token": "dispatch-token"}
+        assert payload == {
             **identity(execution), "taskType": "series_plan", "deadlineAt": execution.deadline_at.isoformat(),
         }
-        assert 0 < call.kwargs["timeout"] <= 5
+        assert 0 < timeout <= 5
 
 
 @pytest.mark.parametrize("status_code", [302, 401])
@@ -251,10 +254,48 @@ def test_normal_worker_stops_on_permanent_http_failure(pending, settings, monkey
     url = "http://n8n:5678/webhook/series_plan"
     settings.N8N_WEBHOOKS = {"series_plan": url}
     settings.N8N_DISPATCH_TOKEN = "dispatch-token"
-    opener = MagicMock(side_effect=HTTPError(url, status_code, "", {}, None))
-    monkeypatch.setattr(n8n.webhooks, "open", opener)
+    monkeypatch.setattr(n8n, "_post_webhook", AsyncMock(return_value=status_code))
     call_command("run_scheduler", once=True)
     execution.refresh_from_db()
     assert execution.state == ExecutionState.FAILED
     assert execution.result["error_code"] == f"workflow_http_{status_code}"
     assert execution.result["retryable"] is False
+
+
+def test_slow_response_headers_cannot_extend_dispatch_deadline(settings):
+    response_started = Event()
+    stop = Event()
+
+    class SlowWebhook(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            try:
+                self.wfile.write(b"HTTP/1.1 200 OK\r\n")
+                response_started.set()
+                for _ in range(30):
+                    if stop.wait(0.04):
+                        return
+                    self.wfile.write(b"X-Partial: value\r\n")
+                self.wfile.write(b"Content-Length: 0\r\n\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), SlowWebhook) as server:
+        settings.N8N_WEBHOOKS = {"series_plan": f"http://127.0.0.1:{server.server_port}/webhook/series_plan"}
+        settings.N8N_DISPATCH_TOKEN = "dispatch-token"
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            start = monotonic()
+            request = WorkflowRequest(
+                "series_plan", uuid4(), uuid4(), "series_plan", "1", uuid4(),
+                timezone.now() + timedelta(seconds=0.35),
+            )
+            with pytest.raises(DeliveryError, match="workflow_transport_failed") as error:
+                n8n.dispatch_workflow(request)
+            assert error.value.retryable
+            assert response_started.is_set() and monotonic() - start < 0.9
+        finally:
+            stop.set()
+            server.shutdown()
+            thread.join()
