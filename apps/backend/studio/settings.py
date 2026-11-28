@@ -7,9 +7,10 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-studio-development-only")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api").split(",")
 # The development workbench proxies /api from Vite, so its origin differs from the API host.
+# Deployments without DEBUG must list their own origins explicitly.
 CSRF_TRUSTED_ORIGINS = [
     origin for origin in os.getenv(
-        "STUDIO_CSRF_TRUSTED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173",
+        "STUDIO_CSRF_TRUSTED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173" if DEBUG else "",
     ).split(",") if origin
 ]
 ROOT_URLCONF = "studio.urls"

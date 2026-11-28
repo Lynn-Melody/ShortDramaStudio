@@ -245,8 +245,12 @@ def test_create_start_inspect_pause_and_resume_real_production(api):
     assert "pass" in keys and "production:e1:s1:image" in keys and "station" not in keys
     shared = get(api, project_path(pid, "/assets"), scope="shared", kind="visual")
     assert {card["assetKey"] for card in shared["results"]} == {"station", "street", "mei"}
-    assert all(card["adoptedVersionId"] == card["latestVersion"]["id"] or card["versionCount"] == 2
-               for card in shared["results"])
+    selected = {
+        task.input["asset"]["assetKey"]: task.output["asset"]["versionId"]
+        for task in Task.objects.filter(schedule_id=pid, task_type__in=["scene_asset", "character_asset"])
+    }
+    assert {card["assetKey"]: card["adoptedVersionId"] for card in shared["results"]} == selected
+    assert all(card["versionCount"] == 2 for card in shared["results"])
     shots = get(api, project_path(pid, f"/episodes/{episode_one['id']}/shots"))
     assert [shot["number"] for shot in shots["results"]] == [1, 2]
     assert shots["results"][0]["dialogue"][0]["lineId"] == "line-1"
@@ -354,6 +358,20 @@ def test_retry_rules_follow_scheduler_state(api):
     assert post(api, project_path(pid, f"/tasks/{plan_task}/retry"), status=409)["code"] == "provider_check_pending"
     assert get(api, project_path(pid, f"/tasks/{plan_task}"))["executionCount"] == 2
 
+    # An accepted workflow that times out needs a provider check before any retry.
+    studio.scheduler.confirm_provider_jobs_inactive(
+        request.execution_id, jobs=Execution.objects.get(pk=request.execution_id).provider_jobs,
+    )
+    Task.objects.filter(pk=plan_task).update(retry_at=timezone.now() - timedelta(seconds=1))
+    studio.idle()
+    [request] = studio.pending_of("series_plan")
+    Execution.objects.filter(pk=request.execution_id).update(deadline_at=timezone.now() - timedelta(seconds=1))
+    assert studio.scheduler.reap_one() == request.execution_id
+    studio.pending.pop(request.execution_id)
+    expired = get(api, project_path(pid, f"/tasks/{plan_task}"))
+    assert (expired["state"], expired["providerCheckPending"], expired["canRetry"]) == ("timed_out", True, False)
+    assert post(api, project_path(pid, f"/tasks/{plan_task}/retry"), status=409)["code"] == "provider_check_pending"
+
     # A workflow that never accepted cannot have provider activity, so exhausting its timeouts allows retry.
     silent = Studio(accept=False)
     other = create(api, "A clockmaker repairs yesterday.")["id"]
@@ -412,6 +430,9 @@ def test_queries_are_scoped_to_one_project(api, settings, monkeypatch):
     assert (url.scheme, url.netloc) == ("http", "media.example.test:9000")
     assert url.path == f"/studio-test/{version.upload.object_key}"
     assert query["X-Amz-Expires"] == ["300"] and query["response-content-disposition"] == ["inline"]
+    ExecutionUpload.objects.filter(pk=version.upload_id).update(content_type="image/svg+xml")
+    unsafe = parse_qs(urlsplit(api.get(project_path(first, f"/asset-versions/{version.pk}/preview")).json()["url"]).query)
+    assert unsafe["response-content-disposition"] == ["attachment"]
     assert (preview["method"], preview["contentType"], preview["sizeBytes"]) == ("GET", "image/png", 1024)
     settings.STUDIO_MEDIA_BUCKET = ""
     assert api.get(project_path(first, f"/asset-versions/{version.pk}/preview")).status_code == 503

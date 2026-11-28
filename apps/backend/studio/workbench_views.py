@@ -158,8 +158,10 @@ class ProjectView(WorkbenchView):
 
 
 def _switch(project_id, running):
-    project = workbench.set_running(workbench.get_project(project_id), running)
-    return Response(v1.output(v1.ProjectSummary, workbench.project_summary(project)))
+    workbench.set_running(workbench.get_project(project_id), running)
+    with consistent_read():
+        summary = workbench.project_summary(workbench.get_project(project_id))
+    return Response(v1.output(v1.ProjectSummary, summary))
 
 
 SWITCH_RESPONSES = {200: v1.ProjectSummary, 409: v1.Error, **ERRORS}
@@ -247,7 +249,8 @@ class RetryTask(WorkbenchView):
     def post(self, request, projectId, taskId):
         project = self.project(projectId)
         workbench.retry(project, taskId)
-        return Response(_task_detail(project, taskId))
+        with consistent_read():
+            return Response(_task_detail(workbench.get_project(projectId), taskId))
 
 
 class TaskOutputsView(WorkbenchView):

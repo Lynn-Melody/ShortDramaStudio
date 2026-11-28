@@ -21,6 +21,9 @@ class UploadConflict(APIException):
 
 UPLOAD_TTL_SECONDS = 300
 PREVIEW_TTL_SECONDS = 300
+# Only media the browser renders without running scripts is shown inline; other types download.
+INLINE_PREVIEW_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif", "text/vtt")
+INLINE_PREVIEW_FAMILIES = ("audio/", "video/")
 
 
 def storage_client(*, endpoint=None):
@@ -79,6 +82,13 @@ def _signed_expiry(url, ttl):
     return datetime.strptime(signed_at, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC) + timedelta(seconds=ttl)
 
 
+def preview_disposition(content_type):
+    content_type = content_type.lower()
+    if content_type in INLINE_PREVIEW_TYPES or content_type.startswith(INLINE_PREVIEW_FAMILIES):
+        return "inline"
+    return "attachment"
+
+
 def sign_preview(upload):
     """Sign a short-lived browser read of one private object. Signing does not contact storage."""
     try:
@@ -90,7 +100,7 @@ def sign_preview(upload):
                     "Bucket": upload.bucket,
                     "Key": upload.object_key,
                     "ResponseContentType": upload.content_type,
-                    "ResponseContentDisposition": "inline",
+                    "ResponseContentDisposition": preview_disposition(upload.content_type),
                 },
                 ExpiresIn=PREVIEW_TTL_SECONDS,
                 HttpMethod="GET",

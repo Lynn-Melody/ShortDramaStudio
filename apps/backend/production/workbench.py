@@ -1,10 +1,11 @@
 """Workbench reads and actions on production projects, scoped to one project at a time."""
 
+from django.db import transaction
 from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery
 from django.db.models.fields.json import KT
 from django.db.models.functions import Cast, Coalesce
 
-from scheduler.models import ChildSlot, Dependency, Execution, Task, TaskState, TaskWait
+from scheduler.models import ChildSlot, Dependency, Execution, Schedule, Task, TaskState, TaskWait
 from scheduler.service import PROVIDER_CHECK, StateConflict
 from scheduler.worker import configured_scheduler
 from studio.pagination import Key, paginate
@@ -170,10 +171,12 @@ def create(idea, project_id=None):
 
 
 def set_running(project, running):
-    if project.root_state == TaskState.COMPLETED:
-        raise ActionConflict("project_completed", "Completed projects cannot be paused or resumed.")
-    configured_scheduler().set_enabled(project.pk, running)
-    return get_project(project.pk)
+    # Check completion under the schedule lock that also serializes the root task's completion.
+    with transaction.atomic():
+        Schedule.objects.select_for_update().get(pk=project.pk)
+        if Task.objects.filter(schedule_id=project.pk, parent__isnull=True, state=TaskState.COMPLETED).exists():
+            raise ActionConflict("project_completed", "Completed projects cannot be paused or resumed.")
+        configured_scheduler().set_enabled(project.pk, running)
 
 
 # Episodes and shots
