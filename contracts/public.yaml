@@ -5,9 +5,9 @@ info:
 paths:
   /api/v1/health:
     get:
-      operationId: api_v1_health_retrieve
+      operationId: health_retrieve
       tags:
-      - api
+      - health
       responses:
         '200':
           content:
@@ -15,16 +15,1411 @@ paths:
               schema:
                 $ref: '#/components/schemas/Health'
           description: ''
+  /api/v1/projects:
+    get:
+      operationId: projects_list
+      summary: List projects, newest first
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          maxLength: 1000
+          minLength: 1
+        description: nextCursor from the previous page.
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectList'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+    post:
+      operationId: projects_create
+      summary: Create a paused project and its root task, or replay a creation
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}:
+    get:
+      operationId: project_read
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/asset-versions/{versionId}/preview:
+    get:
+      operationId: asset_version_preview
+      summary: Sign a short-lived read URL for one private version
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: versionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetPreview'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/assets:
+    get:
+      operationId: assets_list
+      summary: Asset cards in one scope, grouped by asset with the latest version
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          maxLength: 1000
+          minLength: 1
+        description: nextCursor from the previous page.
+      - in: query
+        name: episodeId
+        schema:
+          type: integer
+          minimum: 1
+        description: Required for scope=episode.
+      - in: query
+        name: kind
+        schema:
+          enum:
+          - visual
+          - character
+          - scene
+          - prop
+          - image
+          - audio
+          - video
+          - subtitles
+          - timeline
+          - delivery
+          type: string
+          minLength: 1
+        description: |-
+          visual covers character, scene and prop. delivery covers episode deliveries.
+
+          * `visual` - visual
+          * `character` - character
+          * `scene` - scene
+          * `prop` - prop
+          * `image` - image
+          * `audio` - audio
+          * `video` - video
+          * `subtitles` - subtitles
+          * `timeline` - timeline
+          * `delivery` - delivery
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 200
+          minLength: 1
+        description: Case-insensitive title or asset key search.
+      - in: query
+        name: scope
+        schema:
+          enum:
+          - current
+          - shared
+          - all
+          - episode
+          type: string
+          default: current
+          minLength: 1
+        description: |-
+          * `current` - current
+          * `shared` - shared
+          * `all` - all
+          * `episode` - episode
+      - in: query
+        name: shotId
+        schema:
+          type: integer
+          minimum: 1
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/assets/{assetId}/versions:
+    get:
+      operationId: asset_versions_list
+      parameters:
+      - in: path
+        name: assetId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetVersionList'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/deliveries:
+    get:
+      operationId: deliveries_list
+      summary: Episode deliveries with the exact video, subtitles and timeline versions
+      parameters:
+      - in: query
+        name: episodeId
+        schema:
+          type: integer
+          minimum: 1
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/episodes:
+    get:
+      operationId: episodes_list
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeList'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/episodes/{episodeId}:
+    get:
+      operationId: episode_read
+      parameters:
+      - in: path
+        name: episodeId
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeDetail'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/episodes/{episodeId}/shots:
+    get:
+      operationId: shots_list
+      parameters:
+      - in: path
+        name: episodeId
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShotList'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/pause:
+    post:
+      operationId: project_pause
+      summary: Stop new claims. Claimed executions may still finish.
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSummary'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/resume:
+    post:
+      operationId: project_resume
+      summary: Allow claims again. The first resume starts production.
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSummary'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/task-tree:
+    get:
+      operationId: task_tree_read
+      summary: Running paths with shared ancestors, or a subtree two levels deep
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: rootTaskId
+        schema:
+          type: string
+          format: uuid
+        description: Required for view=subtree.
+      - in: query
+        name: view
+        schema:
+          enum:
+          - running
+          - subtree
+          type: string
+          default: running
+          minLength: 1
+        description: |-
+          * `running` - running
+          * `subtree` - subtree
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTree'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/tasks:
+    get:
+      operationId: tasks_list
+      summary: Locate tasks by state, with their ancestor paths
+      parameters:
+      - in: query
+        name: blocked
+        schema:
+          type:
+          - boolean
+          - 'null'
+        description: 'true: failed or awaiting provider check; false: not blocked.'
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          maxLength: 1000
+          minLength: 1
+        description: nextCursor from the previous page.
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: state
+        schema:
+          enum:
+          - waiting
+          - running
+          - timed_out
+          - completed
+          type: string
+          minLength: 1
+        description: |-
+          * `waiting` - waiting
+          * `running` - running
+          * `timed_out` - timed_out
+          * `completed` - completed
+      - in: query
+        name: taskType
+        schema:
+          type: string
+          pattern: ^[a-z_]{1,100}$
+          minLength: 1
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/tasks/{taskId}:
+    get:
+      operationId: task_read
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: taskId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/tasks/{taskId}/outputs:
+    get:
+      operationId: task_outputs_list
+      summary: Exact versions produced by one task
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: taskId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskOutputs'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/projects/{projectId}/tasks/{taskId}/retry:
+    post:
+      operationId: task_retry
+      summary: Retry a failed-blocked or timed-out task
+      parameters:
+      - in: path
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: taskId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+  /api/v1/session:
+    get:
+      operationId: session_read
+      summary: Read the browser session and issue a CSRF token
+      tags:
+      - session
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+    post:
+      operationId: session_login
+      summary: Sign in with a Django account
+      tags:
+      - session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionLogin'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
+    delete:
+      operationId: session_logout
+      summary: Sign out
+      tags:
+      - session
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ''
 components:
   schemas:
+    AssetBrief:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetKey:
+          type: string
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        title:
+          type: string
+        episode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+        shot:
+          oneOf:
+          - $ref: '#/components/schemas/ShotRef'
+          - type: 'null'
+        delivery:
+          type: boolean
+          description: Part of an episode delivery.
+      required:
+      - assetKey
+      - delivery
+      - episode
+      - id
+      - kind
+      - shot
+      - title
+    AssetCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetKey:
+          type: string
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        title:
+          type: string
+        episode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+        shot:
+          oneOf:
+          - $ref: '#/components/schemas/ShotRef'
+          - type: 'null'
+        delivery:
+          type: boolean
+          description: Part of an episode delivery.
+        versionCount:
+          type: integer
+        latestVersion:
+          $ref: '#/components/schemas/AssetVersion'
+        adoptedVersionId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      required:
+      - adoptedVersionId
+      - assetKey
+      - delivery
+      - episode
+      - id
+      - kind
+      - latestVersion
+      - shot
+      - title
+      - versionCount
+    AssetList:
+      type: object
+      properties:
+        scope:
+          allOf:
+          - $ref: '#/components/schemas/ScopeEnum'
+          description: |-
+            current resolves to episode or shared.
+
+            * `shared` - shared
+            * `all` - all
+            * `episode` - episode
+        episode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetCard'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - episode
+      - nextCursor
+      - results
+      - scope
+    AssetPreview:
+      type: object
+      properties:
+        versionId:
+          type: string
+          format: uuid
+        method:
+          $ref: '#/components/schemas/MethodEnum'
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+      required:
+      - contentType
+      - expiresAt
+      - method
+      - sizeBytes
+      - url
+      - versionId
+    AssetVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        adopted:
+          type: boolean
+          description: Selected by production for downstream use.
+        slot:
+          type: string
+        taskId:
+          type: string
+          format: uuid
+        taskType:
+          type: string
+        executionId:
+          type: string
+          format: uuid
+      required:
+      - adopted
+      - assetId
+      - contentType
+      - createdAt
+      - executionId
+      - id
+      - sizeBytes
+      - slot
+      - taskId
+      - taskType
+      - title
+    AssetVersionList:
+      type: object
+      properties:
+        asset:
+          $ref: '#/components/schemas/AssetCard'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetVersion'
+          description: Newest first.
+      required:
+      - asset
+      - versions
+    CharacterProfile:
+      type: object
+      properties:
+        name:
+          type: string
+        profile:
+          type: string
+      required:
+      - name
+      - profile
+    CodeEnum:
+      enum:
+      - invalid_credentials
+      - project_conflict
+      - project_completed
+      - retry_unavailable
+      - provider_check_pending
+      type: string
+      description: |-
+        * `invalid_credentials` - invalid_credentials
+        * `project_conflict` - project_conflict
+        * `project_completed` - project_completed
+        * `retry_unavailable` - retry_unavailable
+        * `provider_check_pending` - provider_check_pending
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+          description: Adopted by the episode.
+        taskId:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        video:
+          $ref: '#/components/schemas/AssetVersion'
+        subtitles:
+          $ref: '#/components/schemas/AssetVersion'
+        timeline:
+          $ref: '#/components/schemas/AssetVersion'
+      required:
+      - createdAt
+      - current
+      - executionId
+      - id
+      - subtitles
+      - taskId
+      - timeline
+      - video
+    DeliveryList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EpisodeDeliveries'
+      required:
+      - results
+    DialogueLine:
+      type: object
+      properties:
+        lineId:
+          type: string
+        speaker:
+          type: string
+        delivery:
+          type: string
+        text:
+          type: string
+      required:
+      - delivery
+      - lineId
+      - speaker
+      - text
+    DocumentKindEnum:
+      enum:
+      - plan
+      - script
+      - breakdown
+      type: string
+      description: |-
+        * `plan` - plan
+        * `script` - script
+        * `breakdown` - breakdown
+    EpisodeDeliveries:
+      type: object
+      properties:
+        episode:
+          $ref: '#/components/schemas/EpisodeRef'
+        deliveries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Delivery'
+      required:
+      - deliveries
+      - episode
+    EpisodeDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        title:
+          type: string
+        outline:
+          type: string
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          description: The make_episode task, once created.
+        state:
+          oneOf:
+          - $ref: '#/components/schemas/TaskStateEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        shotCount:
+          type: integer
+        delivered:
+          type: boolean
+        current:
+          type: boolean
+        script:
+          type: string
+      required:
+      - current
+      - delivered
+      - id
+      - number
+      - outline
+      - progress
+      - script
+      - shotCount
+      - state
+      - taskId
+      - title
+    EpisodeList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EpisodeSummary'
+      required:
+      - results
+    EpisodeRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        title:
+          type: string
+      required:
+      - id
+      - number
+      - title
+    EpisodeSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        title:
+          type: string
+        outline:
+          type: string
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          description: The make_episode task, once created.
+        state:
+          oneOf:
+          - $ref: '#/components/schemas/TaskStateEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        shotCount:
+          type: integer
+        delivered:
+          type: boolean
+        current:
+          type: boolean
+      required:
+      - current
+      - delivered
+      - id
+      - number
+      - outline
+      - progress
+      - shotCount
+      - state
+      - taskId
+      - title
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          $ref: '#/components/schemas/CodeEnum'
+      required:
+      - detail
+    ExecutionProviderJob:
+      type: object
+      properties:
+        stepKey:
+          type: string
+        provider:
+          type: string
+      required:
+      - provider
+      - stepKey
+    ExecutionStateEnum:
+      enum:
+      - queued
+      - accepted
+      - succeeded
+      - failed
+      - expired
+      type: string
+      description: |-
+        * `queued` - queued
+        * `accepted` - accepted
+        * `succeeded` - succeeded
+        * `failed` - failed
+        * `expired` - expired
+    ExecutionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/ExecutionStateEnum'
+        current:
+          type: boolean
+        startedAt:
+          type: string
+          format: date-time
+        deadlineAt:
+          type: string
+          format: date-time
+        endedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        workflowAcceptedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        outcome:
+          oneOf:
+          - $ref: '#/components/schemas/OutcomeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        errorCode:
+          type:
+          - string
+          - 'null'
+        message:
+          type:
+          - string
+          - 'null'
+        retryable:
+          type:
+          - boolean
+          - 'null'
+        providerJobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionProviderJob'
+        providerJobsCheckedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - current
+      - deadlineAt
+      - endedAt
+      - errorCode
+      - id
+      - message
+      - outcome
+      - providerJobs
+      - providerJobsCheckedAt
+      - retryable
+      - startedAt
+      - state
+      - workflowAcceptedAt
     Health:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/StatusEnum'
+          $ref: '#/components/schemas/HealthStatusEnum'
       required:
       - status
-    StatusEnum:
+    HealthStatusEnum:
       enum:
       - ok
       - unavailable
@@ -32,3 +1427,749 @@ components:
       description: |-
         * `ok` - ok
         * `unavailable` - unavailable
+    KindEnum:
+      enum:
+      - character
+      - scene
+      - prop
+      - image
+      - audio
+      - video
+      - subtitles
+      - timeline
+      type: string
+      description: |-
+        * `character` - character
+        * `scene` - scene
+        * `prop` - prop
+        * `image` - image
+        * `audio` - audio
+        * `video` - video
+        * `subtitles` - subtitles
+        * `timeline` - timeline
+    MethodEnum:
+      enum:
+      - GET
+      type: string
+      description: '* `GET` - GET'
+    NullEnum:
+      type: 'null'
+    OutcomeEnum:
+      enum:
+      - completed
+      - failed
+      - expired
+      - wait_for_children
+      type: string
+      description: |-
+        * `completed` - completed
+        * `failed` - failed
+        * `expired` - expired
+        * `wait_for_children` - wait_for_children
+    ProjectCreate:
+      type: object
+      properties:
+        idea:
+          type: string
+          description: Short drama idea. Leading and trailing spaces are removed.
+          maxLength: 10000
+        projectId:
+          type: string
+          format: uuid
+          description: Optional client UUID. Replaying the same idea returns the project.
+      required:
+      - idea
+    ProjectDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Planned title, or the first line of the idea before planning.
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatusEnum'
+        startedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: First resume. Null until production starts.
+        createdAt:
+          type: string
+          format: date-time
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+          description: Root task structural progress from 0 to 1.
+        rootTaskId:
+          type: string
+          format: uuid
+        currentEpisode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+        runningCount:
+          type: integer
+        timedOutCount:
+          type: integer
+        blockedCount:
+          type: integer
+          description: Waiting tasks blocked by a failure or a pending provider check.
+        idea:
+          type: string
+        plan:
+          oneOf:
+          - $ref: '#/components/schemas/ProjectPlan'
+          - type: 'null'
+        episodeCount:
+          type: integer
+      required:
+      - blockedCount
+      - createdAt
+      - currentEpisode
+      - episodeCount
+      - id
+      - idea
+      - name
+      - plan
+      - progress
+      - rootTaskId
+      - runningCount
+      - startedAt
+      - status
+      - timedOutCount
+      - title
+    ProjectList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectSummary'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - nextCursor
+      - results
+    ProjectPlan:
+      type: object
+      properties:
+        world:
+          type: string
+        visualGuide:
+          type: string
+        characters:
+          type: array
+          items:
+            $ref: '#/components/schemas/CharacterProfile'
+      required:
+      - characters
+      - visualGuide
+      - world
+    ProjectStatusEnum:
+      enum:
+      - running
+      - paused
+      - completed
+      type: string
+      description: |-
+        * `running` - running
+        * `paused` - paused
+        * `completed` - completed
+    ProjectSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Planned title, or the first line of the idea before planning.
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatusEnum'
+        startedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: First resume. Null until production starts.
+        createdAt:
+          type: string
+          format: date-time
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+          description: Root task structural progress from 0 to 1.
+        rootTaskId:
+          type: string
+          format: uuid
+        currentEpisode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+        runningCount:
+          type: integer
+        timedOutCount:
+          type: integer
+        blockedCount:
+          type: integer
+          description: Waiting tasks blocked by a failure or a pending provider check.
+      required:
+      - blockedCount
+      - createdAt
+      - currentEpisode
+      - id
+      - name
+      - progress
+      - rootTaskId
+      - runningCount
+      - startedAt
+      - status
+      - timedOutCount
+      - title
+    ScopeEnum:
+      enum:
+      - shared
+      - all
+      - episode
+      type: string
+      description: |-
+        * `shared` - shared
+        * `all` - all
+        * `episode` - episode
+    Session:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        username:
+          type:
+          - string
+          - 'null'
+        csrfToken:
+          type: string
+          description: Send as X-CSRFToken on unsafe requests.
+      required:
+      - authenticated
+      - csrfToken
+      - username
+    SessionLogin:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 150
+        password:
+          type: string
+          maxLength: 4096
+      required:
+      - password
+      - username
+    ShotList:
+      type: object
+      properties:
+        episode:
+          $ref: '#/components/schemas/EpisodeRef'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShotSummary'
+      required:
+      - episode
+      - results
+    ShotRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+      required:
+      - id
+      - number
+    ShotSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        sceneId:
+          type: string
+        description:
+          type: string
+        estimatedDurationMs:
+          type: integer
+        assetKeys:
+          type: array
+          items:
+            type: string
+        dialogue:
+          type: array
+          items:
+            $ref: '#/components/schemas/DialogueLine'
+        sound:
+          type: array
+          items:
+            $ref: '#/components/schemas/SoundCue'
+      required:
+      - assetKeys
+      - description
+      - dialogue
+      - estimatedDurationMs
+      - id
+      - number
+      - sceneId
+      - sound
+    SoundCue:
+      type: object
+      properties:
+        cueId:
+          type: string
+        description:
+          type: string
+      required:
+      - cueId
+      - description
+    TaskDependency:
+      type: object
+      properties:
+        task:
+          $ref: '#/components/schemas/TaskRef'
+        satisfied:
+          type: boolean
+      required:
+      - satisfied
+      - task
+    TaskDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        taskType:
+          type: string
+        state:
+          $ref: '#/components/schemas/TaskStateEnum'
+        parentId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        slotKey:
+          type:
+          - string
+          - 'null'
+          description: Reserved position in the parent.
+        blockedReason:
+          type:
+          - string
+          - 'null'
+          description: Failure code, or provider_jobs_unverified.
+        canRetry:
+          type: boolean
+          description: Failed-blocked or timed-out, and not awaiting a provider check.
+        providerCheckPending:
+          type: boolean
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        childTotal:
+          type: integer
+        childCount:
+          type: integer
+          description: Reserved positions already bound to a child task.
+        episodeNumber:
+          type:
+          - integer
+          - 'null'
+        shotNumber:
+          type:
+          - integer
+          - 'null'
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskRef'
+          description: Ancestors from the project root.
+        attemptCount:
+          type: integer
+        retryAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Scheduled automatic retry.
+        completionReason:
+          type: string
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskDependency'
+        waits:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskWait'
+        currentExecution:
+          oneOf:
+          - $ref: '#/components/schemas/ExecutionSummary'
+          - type: 'null'
+        executions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionSummary'
+          description: Newest first, at most 20.
+        executionCount:
+          type: integer
+        outputCount:
+          type: integer
+          description: Media versions produced by this task.
+      required:
+      - attemptCount
+      - blockedReason
+      - canRetry
+      - childCount
+      - childTotal
+      - completionReason
+      - currentExecution
+      - dependencies
+      - episodeNumber
+      - executionCount
+      - executions
+      - id
+      - name
+      - outputCount
+      - parentId
+      - path
+      - progress
+      - providerCheckPending
+      - retryAt
+      - shotNumber
+      - slotKey
+      - state
+      - taskType
+      - waits
+    TaskDocument:
+      type: object
+      properties:
+        document:
+          $ref: '#/components/schemas/DocumentKindEnum'
+        episode:
+          oneOf:
+          - $ref: '#/components/schemas/EpisodeRef'
+          - type: 'null'
+      required:
+      - document
+      - episode
+    TaskList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskListItem'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - nextCursor
+      - results
+    TaskListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        taskType:
+          type: string
+        state:
+          $ref: '#/components/schemas/TaskStateEnum'
+        parentId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        slotKey:
+          type:
+          - string
+          - 'null'
+          description: Reserved position in the parent.
+        blockedReason:
+          type:
+          - string
+          - 'null'
+          description: Failure code, or provider_jobs_unverified.
+        canRetry:
+          type: boolean
+          description: Failed-blocked or timed-out, and not awaiting a provider check.
+        providerCheckPending:
+          type: boolean
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        childTotal:
+          type: integer
+        childCount:
+          type: integer
+          description: Reserved positions already bound to a child task.
+        episodeNumber:
+          type:
+          - integer
+          - 'null'
+        shotNumber:
+          type:
+          - integer
+          - 'null'
+        path:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Ancestor task IDs from the project root.
+      required:
+      - blockedReason
+      - canRetry
+      - childCount
+      - childTotal
+      - episodeNumber
+      - id
+      - name
+      - parentId
+      - path
+      - progress
+      - providerCheckPending
+      - shotNumber
+      - slotKey
+      - state
+      - taskType
+    TaskNode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        taskType:
+          type: string
+        state:
+          $ref: '#/components/schemas/TaskStateEnum'
+        parentId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        slotKey:
+          type:
+          - string
+          - 'null'
+          description: Reserved position in the parent.
+        blockedReason:
+          type:
+          - string
+          - 'null'
+          description: Failure code, or provider_jobs_unverified.
+        canRetry:
+          type: boolean
+          description: Failed-blocked or timed-out, and not awaiting a provider check.
+        providerCheckPending:
+          type: boolean
+        progress:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        childTotal:
+          type: integer
+        childCount:
+          type: integer
+          description: Reserved positions already bound to a child task.
+        episodeNumber:
+          type:
+          - integer
+          - 'null'
+        shotNumber:
+          type:
+          - integer
+          - 'null'
+      required:
+      - blockedReason
+      - canRetry
+      - childCount
+      - childTotal
+      - episodeNumber
+      - id
+      - name
+      - parentId
+      - progress
+      - providerCheckPending
+      - shotNumber
+      - slotKey
+      - state
+      - taskType
+    TaskOutputVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        adopted:
+          type: boolean
+          description: Selected by production for downstream use.
+        slot:
+          type: string
+        taskId:
+          type: string
+          format: uuid
+        taskType:
+          type: string
+        executionId:
+          type: string
+          format: uuid
+        asset:
+          $ref: '#/components/schemas/AssetBrief'
+      required:
+      - adopted
+      - asset
+      - assetId
+      - contentType
+      - createdAt
+      - executionId
+      - id
+      - sizeBytes
+      - slot
+      - taskId
+      - taskType
+      - title
+    TaskOutputs:
+      type: object
+      properties:
+        task:
+          $ref: '#/components/schemas/TaskRef'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskOutputVersion'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskDocument'
+          description: Text products stored on the project or episode.
+      required:
+      - documents
+      - task
+      - versions
+    TaskRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        taskType:
+          type: string
+        state:
+          $ref: '#/components/schemas/TaskStateEnum'
+      required:
+      - id
+      - name
+      - state
+      - taskType
+    TaskStateEnum:
+      enum:
+      - waiting
+      - running
+      - timed_out
+      - completed
+      type: string
+      description: |-
+        * `waiting` - waiting
+        * `running` - running
+        * `timed_out` - timed_out
+        * `completed` - completed
+    TaskTree:
+      type: object
+      properties:
+        view:
+          $ref: '#/components/schemas/ViewEnum'
+        rootTaskId:
+          type: string
+          format: uuid
+          description: Project root for view=running, otherwise the requested subtree
+            root.
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskRef'
+          description: Ancestors of rootTaskId from the project root.
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskNode'
+      required:
+      - nodes
+      - path
+      - rootTaskId
+      - view
+    TaskWait:
+      type: object
+      properties:
+        slotKey:
+          type: string
+        task:
+          oneOf:
+          - $ref: '#/components/schemas/TaskRef'
+          - type: 'null'
+        satisfied:
+          type: boolean
+      required:
+      - satisfied
+      - slotKey
+      - task
+    ViewEnum:
+      enum:
+      - running
+      - subtree
+      type: string
+      description: |-
+        * `running` - running
+        * `subtree` - subtree
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

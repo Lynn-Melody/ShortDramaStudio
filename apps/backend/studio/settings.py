@@ -6,9 +6,16 @@ from django.core.exceptions import ImproperlyConfigured
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-studio-development-only")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api").split(",")
+# The development workbench proxies /api from Vite, so its origin differs from the API host.
+CSRF_TRUSTED_ORIGINS = [
+    origin for origin in os.getenv(
+        "STUDIO_CSRF_TRUSTED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",") if origin
+]
 ROOT_URLCONF = "studio.urls"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
+TIME_ZONE = "UTC"
 STATIC_URL = "/static/"
 
 INSTALLED_APPS = [
@@ -65,11 +72,21 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Short Drama Studio API",
     "VERSION": "1.0.0",
     "OAS_VERSION": "3.1.0",
+    # Name public enums that share a field name. Internal enum names stay unchanged.
+    "ENUM_NAME_OVERRIDES": {
+        "TaskStateEnum": "contracts.public_v1.TASK_STATES",
+        "ExecutionStateEnum": "contracts.public_v1.EXECUTION_STATES",
+        "ProjectStatusEnum": "contracts.public_v1.PROJECT_STATUSES",
+        "AssetKindFilterEnum": "contracts.public_v1.KIND_FILTERS",
+        "DocumentKindEnum": "contracts.public_v1.DOCUMENT_KINDS",
+    },
 }
 
 WORKFLOW_SERVICE_TOKEN = os.getenv("STUDIO_WORKFLOW_SERVICE_TOKEN", "")
 WORKFLOW_VERIFIER_TOKEN = os.getenv("STUDIO_WORKFLOW_VERIFIER_TOKEN", "")
 STUDIO_S3_ENDPOINT = os.getenv("STUDIO_S3_ENDPOINT", "")
+# Browsers fetch signed media reads from this endpoint. It defaults to the API's own S3 endpoint.
+STUDIO_S3_BROWSER_ENDPOINT = os.getenv("STUDIO_S3_BROWSER_ENDPOINT", "")
 STUDIO_MEDIA_BUCKET = os.getenv("STUDIO_MEDIA_BUCKET", "")
 STUDIO_S3_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 N8N_DISPATCH_TOKEN = os.getenv("STUDIO_N8N_DISPATCH_TOKEN", "")

@@ -20,15 +20,16 @@ class UploadConflict(APIException):
 
 
 UPLOAD_TTL_SECONDS = 300
+PREVIEW_TTL_SECONDS = 300
 
 
-def storage_client():
+def storage_client(*, endpoint=None):
     if not settings.STUDIO_MEDIA_BUCKET:
         raise StorageUnavailable()
     try:
         return boto3.client(
             "s3",
-            endpoint_url=settings.STUDIO_S3_ENDPOINT or None,
+            endpoint_url=endpoint or settings.STUDIO_S3_ENDPOINT or None,
             region_name=settings.STUDIO_S3_REGION,
             config=Config(
                 signature_version="s3v4",
@@ -65,13 +66,38 @@ def sign_upload(upload, deadline_at):
                 ExpiresIn=ttl,
                 HttpMethod="PUT",
             )
-        signed_at = parse_qs(urlsplit(url).query)["X-Amz-Date"][0]
-        expires_at = datetime.strptime(signed_at, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC) + timedelta(seconds=ttl)
+        expires_at = _signed_expiry(url, ttl)
     except (BotoCoreError, ClientError, KeyError, ValueError) as exc:
         raise StorageUnavailable() from exc
     if expires_at > deadline_at or expires_at <= timezone.now():
         raise UploadConflict("The signed URL falls outside the upload window.")
     return url, headers, expires_at
+
+
+def _signed_expiry(url, ttl):
+    signed_at = parse_qs(urlsplit(url).query)["X-Amz-Date"][0]
+    return datetime.strptime(signed_at, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC) + timedelta(seconds=ttl)
+
+
+def sign_preview(upload):
+    """Sign a short-lived browser read of one private object. Signing does not contact storage."""
+    try:
+        endpoint = settings.STUDIO_S3_BROWSER_ENDPOINT or None
+        with closing(storage_client(endpoint=endpoint)) as client:
+            url = client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": upload.bucket,
+                    "Key": upload.object_key,
+                    "ResponseContentType": upload.content_type,
+                    "ResponseContentDisposition": "inline",
+                },
+                ExpiresIn=PREVIEW_TTL_SECONDS,
+                HttpMethod="GET",
+            )
+        return url, _signed_expiry(url, PREVIEW_TTL_SECONDS)
+    except (BotoCoreError, ClientError, KeyError, ValueError) as exc:
+        raise StorageUnavailable() from exc
 
 
 def verify_uploaded_object(client, upload):

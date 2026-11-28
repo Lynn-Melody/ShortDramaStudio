@@ -11,10 +11,296 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_v1_health_retrieve"];
+        get: operations["health_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List projects, newest first */
+        get: operations["projects_list"];
+        put?: never;
+        /** Create a paused project and its root task, or replay a creation */
+        post: operations["projects_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["project_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/asset-versions/{versionId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sign a short-lived read URL for one private version */
+        get: operations["asset_version_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Asset cards in one scope, grouped by asset with the latest version */
+        get: operations["assets_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/assets/{assetId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["asset_versions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Episode deliveries with the exact video, subtitles and timeline versions */
+        get: operations["deliveries_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["episodes_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/episodes/{episodeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["episode_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/episodes/{episodeId}/shots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["shots_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop new claims. Claimed executions may still finish. */
+        post: operations["project_pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Allow claims again. The first resume starts production. */
+        post: operations["project_resume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/task-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Running paths with shared ancestors, or a subtree two levels deep */
+        get: operations["task_tree_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Locate tasks by state, with their ancestor paths */
+        get: operations["tasks_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["task_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/tasks/{taskId}/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exact versions produced by one task */
+        get: operations["task_outputs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/tasks/{taskId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry a failed-blocked or timed-out task */
+        post: operations["task_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the browser session and issue a CSRF token */
+        get: operations["session_read"];
+        put?: never;
+        /** Sign in with a Django account */
+        post: operations["session_login"];
+        /** Sign out */
+        delete: operations["session_logout"];
         options?: never;
         head?: never;
         patch?: never;
@@ -24,15 +310,528 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AssetBrief: {
+            /** Format: uuid */
+            id: string;
+            assetKey: string;
+            kind: components["schemas"]["KindEnum"];
+            title: string;
+            episode: components["schemas"]["EpisodeRef"] | null;
+            shot: components["schemas"]["ShotRef"] | null;
+            /** @description Part of an episode delivery. */
+            delivery: boolean;
+        };
+        AssetCard: {
+            /** Format: uuid */
+            id: string;
+            assetKey: string;
+            kind: components["schemas"]["KindEnum"];
+            title: string;
+            episode: components["schemas"]["EpisodeRef"] | null;
+            shot: components["schemas"]["ShotRef"] | null;
+            /** @description Part of an episode delivery. */
+            delivery: boolean;
+            versionCount: number;
+            latestVersion: components["schemas"]["AssetVersion"];
+            /** Format: uuid */
+            adoptedVersionId: string | null;
+        };
+        AssetList: {
+            /**
+             * @description current resolves to episode or shared.
+             *
+             *     * `shared` - shared
+             *     * `all` - all
+             *     * `episode` - episode
+             */
+            scope: components["schemas"]["ScopeEnum"];
+            episode: components["schemas"]["EpisodeRef"] | null;
+            results: components["schemas"]["AssetCard"][];
+            nextCursor: string | null;
+        };
+        AssetPreview: {
+            /** Format: uuid */
+            versionId: string;
+            method: components["schemas"]["MethodEnum"];
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
+            contentType: string;
+            sizeBytes: number;
+        };
+        AssetVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            assetId: string;
+            title: string;
+            /** Format: date-time */
+            createdAt: string;
+            contentType: string;
+            sizeBytes: number;
+            /** @description Selected by production for downstream use. */
+            adopted: boolean;
+            slot: string;
+            /** Format: uuid */
+            taskId: string;
+            taskType: string;
+            /** Format: uuid */
+            executionId: string;
+        };
+        AssetVersionList: {
+            asset: components["schemas"]["AssetCard"];
+            /** @description Newest first. */
+            versions: components["schemas"]["AssetVersion"][];
+        };
+        CharacterProfile: {
+            name: string;
+            profile: string;
+        };
+        /**
+         * @description * `invalid_credentials` - invalid_credentials
+         *     * `project_conflict` - project_conflict
+         *     * `project_completed` - project_completed
+         *     * `retry_unavailable` - retry_unavailable
+         *     * `provider_check_pending` - provider_check_pending
+         * @enum {string}
+         */
+        CodeEnum: "invalid_credentials" | "project_conflict" | "project_completed" | "retry_unavailable" | "provider_check_pending";
+        Delivery: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Adopted by the episode. */
+            current: boolean;
+            /** Format: uuid */
+            taskId: string;
+            /** Format: uuid */
+            executionId: string;
+            video: components["schemas"]["AssetVersion"];
+            subtitles: components["schemas"]["AssetVersion"];
+            timeline: components["schemas"]["AssetVersion"];
+        };
+        DeliveryList: {
+            results: components["schemas"]["EpisodeDeliveries"][];
+        };
+        DialogueLine: {
+            lineId: string;
+            speaker: string;
+            delivery: string;
+            text: string;
+        };
+        /**
+         * @description * `plan` - plan
+         *     * `script` - script
+         *     * `breakdown` - breakdown
+         * @enum {string}
+         */
+        DocumentKindEnum: "plan" | "script" | "breakdown";
+        EpisodeDeliveries: {
+            episode: components["schemas"]["EpisodeRef"];
+            deliveries: components["schemas"]["Delivery"][];
+        };
+        EpisodeDetail: {
+            id: number;
+            number: number;
+            title: string;
+            outline: string;
+            /**
+             * Format: uuid
+             * @description The make_episode task, once created.
+             */
+            taskId: string | null;
+            state: components["schemas"]["TaskStateEnum"] | components["schemas"]["NullEnum"];
+            /** Format: double */
+            progress: number;
+            shotCount: number;
+            delivered: boolean;
+            current: boolean;
+            script: string;
+        };
+        EpisodeList: {
+            results: components["schemas"]["EpisodeSummary"][];
+        };
+        EpisodeRef: {
+            id: number;
+            number: number;
+            title: string;
+        };
+        EpisodeSummary: {
+            id: number;
+            number: number;
+            title: string;
+            outline: string;
+            /**
+             * Format: uuid
+             * @description The make_episode task, once created.
+             */
+            taskId: string | null;
+            state: components["schemas"]["TaskStateEnum"] | components["schemas"]["NullEnum"];
+            /** Format: double */
+            progress: number;
+            shotCount: number;
+            delivered: boolean;
+            current: boolean;
+        };
+        Error: {
+            detail: string;
+            code?: components["schemas"]["CodeEnum"];
+        };
+        ExecutionProviderJob: {
+            stepKey: string;
+            provider: string;
+        };
+        /**
+         * @description * `queued` - queued
+         *     * `accepted` - accepted
+         *     * `succeeded` - succeeded
+         *     * `failed` - failed
+         *     * `expired` - expired
+         * @enum {string}
+         */
+        ExecutionStateEnum: "queued" | "accepted" | "succeeded" | "failed" | "expired";
+        ExecutionSummary: {
+            /** Format: uuid */
+            id: string;
+            state: components["schemas"]["ExecutionStateEnum"];
+            current: boolean;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            deadlineAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+            /** Format: date-time */
+            workflowAcceptedAt: string | null;
+            outcome: components["schemas"]["OutcomeEnum"] | components["schemas"]["NullEnum"];
+            errorCode: string | null;
+            message: string | null;
+            retryable: boolean | null;
+            providerJobs: components["schemas"]["ExecutionProviderJob"][];
+            /** Format: date-time */
+            providerJobsCheckedAt: string | null;
+        };
         Health: {
-            status: components["schemas"]["StatusEnum"];
+            status: components["schemas"]["HealthStatusEnum"];
         };
         /**
          * @description * `ok` - ok
          *     * `unavailable` - unavailable
          * @enum {string}
          */
-        StatusEnum: "ok" | "unavailable";
+        HealthStatusEnum: "ok" | "unavailable";
+        /**
+         * @description * `character` - character
+         *     * `scene` - scene
+         *     * `prop` - prop
+         *     * `image` - image
+         *     * `audio` - audio
+         *     * `video` - video
+         *     * `subtitles` - subtitles
+         *     * `timeline` - timeline
+         * @enum {string}
+         */
+        KindEnum: "character" | "scene" | "prop" | "image" | "audio" | "video" | "subtitles" | "timeline";
+        /**
+         * @description * `GET` - GET
+         * @enum {string}
+         */
+        MethodEnum: "GET";
+        NullEnum: null;
+        /**
+         * @description * `completed` - completed
+         *     * `failed` - failed
+         *     * `expired` - expired
+         *     * `wait_for_children` - wait_for_children
+         * @enum {string}
+         */
+        OutcomeEnum: "completed" | "failed" | "expired" | "wait_for_children";
+        ProjectCreate: {
+            /** @description Short drama idea. Leading and trailing spaces are removed. */
+            idea: string;
+            /**
+             * Format: uuid
+             * @description Optional client UUID. Replaying the same idea returns the project.
+             */
+            projectId?: string;
+        };
+        ProjectDetail: {
+            /** Format: uuid */
+            id: string;
+            /** @description Planned title, or the first line of the idea before planning. */
+            name: string;
+            title: string;
+            status: components["schemas"]["ProjectStatusEnum"];
+            /**
+             * Format: date-time
+             * @description First resume. Null until production starts.
+             */
+            startedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: double
+             * @description Root task structural progress from 0 to 1.
+             */
+            progress: number;
+            /** Format: uuid */
+            rootTaskId: string;
+            currentEpisode: components["schemas"]["EpisodeRef"] | null;
+            runningCount: number;
+            timedOutCount: number;
+            /** @description Waiting tasks blocked by a failure or a pending provider check. */
+            blockedCount: number;
+            idea: string;
+            plan: components["schemas"]["ProjectPlan"] | null;
+            episodeCount: number;
+        };
+        ProjectList: {
+            results: components["schemas"]["ProjectSummary"][];
+            nextCursor: string | null;
+        };
+        ProjectPlan: {
+            world: string;
+            visualGuide: string;
+            characters: components["schemas"]["CharacterProfile"][];
+        };
+        /**
+         * @description * `running` - running
+         *     * `paused` - paused
+         *     * `completed` - completed
+         * @enum {string}
+         */
+        ProjectStatusEnum: "running" | "paused" | "completed";
+        ProjectSummary: {
+            /** Format: uuid */
+            id: string;
+            /** @description Planned title, or the first line of the idea before planning. */
+            name: string;
+            title: string;
+            status: components["schemas"]["ProjectStatusEnum"];
+            /**
+             * Format: date-time
+             * @description First resume. Null until production starts.
+             */
+            startedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: double
+             * @description Root task structural progress from 0 to 1.
+             */
+            progress: number;
+            /** Format: uuid */
+            rootTaskId: string;
+            currentEpisode: components["schemas"]["EpisodeRef"] | null;
+            runningCount: number;
+            timedOutCount: number;
+            /** @description Waiting tasks blocked by a failure or a pending provider check. */
+            blockedCount: number;
+        };
+        /**
+         * @description * `shared` - shared
+         *     * `all` - all
+         *     * `episode` - episode
+         * @enum {string}
+         */
+        ScopeEnum: "shared" | "all" | "episode";
+        Session: {
+            authenticated: boolean;
+            username: string | null;
+            /** @description Send as X-CSRFToken on unsafe requests. */
+            csrfToken: string;
+        };
+        SessionLogin: {
+            username: string;
+            password: string;
+        };
+        ShotList: {
+            episode: components["schemas"]["EpisodeRef"];
+            results: components["schemas"]["ShotSummary"][];
+        };
+        ShotRef: {
+            id: number;
+            number: number;
+        };
+        ShotSummary: {
+            id: number;
+            number: number;
+            sceneId: string;
+            description: string;
+            estimatedDurationMs: number;
+            assetKeys: string[];
+            dialogue: components["schemas"]["DialogueLine"][];
+            sound: components["schemas"]["SoundCue"][];
+        };
+        SoundCue: {
+            cueId: string;
+            description: string;
+        };
+        TaskDependency: {
+            task: components["schemas"]["TaskRef"];
+            satisfied: boolean;
+        };
+        TaskDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            taskType: string;
+            state: components["schemas"]["TaskStateEnum"];
+            /** Format: uuid */
+            parentId: string | null;
+            /** @description Reserved position in the parent. */
+            slotKey: string | null;
+            /** @description Failure code, or provider_jobs_unverified. */
+            blockedReason: string | null;
+            /** @description Failed-blocked or timed-out, and not awaiting a provider check. */
+            canRetry: boolean;
+            providerCheckPending: boolean;
+            /** Format: double */
+            progress: number;
+            childTotal: number;
+            /** @description Reserved positions already bound to a child task. */
+            childCount: number;
+            episodeNumber: number | null;
+            shotNumber: number | null;
+            /** @description Ancestors from the project root. */
+            path: components["schemas"]["TaskRef"][];
+            attemptCount: number;
+            /**
+             * Format: date-time
+             * @description Scheduled automatic retry.
+             */
+            retryAt: string | null;
+            completionReason: string;
+            dependencies: components["schemas"]["TaskDependency"][];
+            waits: components["schemas"]["TaskWait"][];
+            currentExecution: components["schemas"]["ExecutionSummary"] | null;
+            /** @description Newest first, at most 20. */
+            executions: components["schemas"]["ExecutionSummary"][];
+            executionCount: number;
+            /** @description Media versions produced by this task. */
+            outputCount: number;
+        };
+        TaskDocument: {
+            document: components["schemas"]["DocumentKindEnum"];
+            episode: components["schemas"]["EpisodeRef"] | null;
+        };
+        TaskList: {
+            results: components["schemas"]["TaskListItem"][];
+            nextCursor: string | null;
+        };
+        TaskListItem: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            taskType: string;
+            state: components["schemas"]["TaskStateEnum"];
+            /** Format: uuid */
+            parentId: string | null;
+            /** @description Reserved position in the parent. */
+            slotKey: string | null;
+            /** @description Failure code, or provider_jobs_unverified. */
+            blockedReason: string | null;
+            /** @description Failed-blocked or timed-out, and not awaiting a provider check. */
+            canRetry: boolean;
+            providerCheckPending: boolean;
+            /** Format: double */
+            progress: number;
+            childTotal: number;
+            /** @description Reserved positions already bound to a child task. */
+            childCount: number;
+            episodeNumber: number | null;
+            shotNumber: number | null;
+            /** @description Ancestor task IDs from the project root. */
+            path: string[];
+        };
+        TaskNode: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            taskType: string;
+            state: components["schemas"]["TaskStateEnum"];
+            /** Format: uuid */
+            parentId: string | null;
+            /** @description Reserved position in the parent. */
+            slotKey: string | null;
+            /** @description Failure code, or provider_jobs_unverified. */
+            blockedReason: string | null;
+            /** @description Failed-blocked or timed-out, and not awaiting a provider check. */
+            canRetry: boolean;
+            providerCheckPending: boolean;
+            /** Format: double */
+            progress: number;
+            childTotal: number;
+            /** @description Reserved positions already bound to a child task. */
+            childCount: number;
+            episodeNumber: number | null;
+            shotNumber: number | null;
+        };
+        TaskOutputVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            assetId: string;
+            title: string;
+            /** Format: date-time */
+            createdAt: string;
+            contentType: string;
+            sizeBytes: number;
+            /** @description Selected by production for downstream use. */
+            adopted: boolean;
+            slot: string;
+            /** Format: uuid */
+            taskId: string;
+            taskType: string;
+            /** Format: uuid */
+            executionId: string;
+            asset: components["schemas"]["AssetBrief"];
+        };
+        TaskOutputs: {
+            task: components["schemas"]["TaskRef"];
+            versions: components["schemas"]["TaskOutputVersion"][];
+            /** @description Text products stored on the project or episode. */
+            documents: components["schemas"]["TaskDocument"][];
+        };
+        TaskRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            taskType: string;
+            state: components["schemas"]["TaskStateEnum"];
+        };
+        /**
+         * @description * `waiting` - waiting
+         *     * `running` - running
+         *     * `timed_out` - timed_out
+         *     * `completed` - completed
+         * @enum {string}
+         */
+        TaskStateEnum: "waiting" | "running" | "timed_out" | "completed";
+        TaskTree: {
+            view: components["schemas"]["ViewEnum"];
+            /**
+             * Format: uuid
+             * @description Project root for view=running, otherwise the requested subtree root.
+             */
+            rootTaskId: string;
+            /** @description Ancestors of rootTaskId from the project root. */
+            path: components["schemas"]["TaskRef"][];
+            nodes: components["schemas"]["TaskNode"][];
+        };
+        TaskWait: {
+            slotKey: string;
+            task: components["schemas"]["TaskRef"] | null;
+            satisfied: boolean;
+        };
+        /**
+         * @description * `running` - running
+         *     * `subtree` - subtree
+         * @enum {string}
+         */
+        ViewEnum: "running" | "subtree";
     };
     responses: never;
     parameters: never;
@@ -42,7 +841,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    api_v1_health_retrieve: {
+    health_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -57,6 +856,885 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    projects_list: {
+        parameters: {
+            query?: {
+                /** @description nextCursor from the previous page. */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    projects_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    project_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    asset_version_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetPreview"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    assets_list: {
+        parameters: {
+            query?: {
+                /** @description nextCursor from the previous page. */
+                cursor?: string;
+                /** @description Required for scope=episode. */
+                episodeId?: number;
+                /**
+                 * @description visual covers character, scene and prop. delivery covers episode deliveries.
+                 *
+                 *     * `visual` - visual
+                 *     * `character` - character
+                 *     * `scene` - scene
+                 *     * `prop` - prop
+                 *     * `image` - image
+                 *     * `audio` - audio
+                 *     * `video` - video
+                 *     * `subtitles` - subtitles
+                 *     * `timeline` - timeline
+                 *     * `delivery` - delivery
+                 */
+                kind?: "visual" | "character" | "scene" | "prop" | "image" | "audio" | "video" | "subtitles" | "timeline" | "delivery";
+                limit?: number;
+                /** @description Case-insensitive title or asset key search. */
+                q?: string;
+                /**
+                 * @description * `current` - current
+                 *     * `shared` - shared
+                 *     * `all` - all
+                 *     * `episode` - episode
+                 */
+                scope?: "current" | "shared" | "all" | "episode";
+                shotId?: number;
+            };
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    asset_versions_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assetId: string;
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetVersionList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deliveries_list: {
+        parameters: {
+            query?: {
+                episodeId?: number;
+            };
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    episodes_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    episode_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episodeId: number;
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeDetail"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    shots_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                episodeId: number;
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShotList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    project_pause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    project_resume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    task_tree_read: {
+        parameters: {
+            query?: {
+                /** @description Required for view=subtree. */
+                rootTaskId?: string;
+                /**
+                 * @description * `running` - running
+                 *     * `subtree` - subtree
+                 */
+                view?: "running" | "subtree";
+            };
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskTree"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    tasks_list: {
+        parameters: {
+            query?: {
+                /** @description true: failed or awaiting provider check; false: not blocked. */
+                blocked?: boolean | null;
+                /** @description nextCursor from the previous page. */
+                cursor?: string;
+                limit?: number;
+                /**
+                 * @description * `waiting` - waiting
+                 *     * `running` - running
+                 *     * `timed_out` - timed_out
+                 *     * `completed` - completed
+                 */
+                state?: "waiting" | "running" | "timed_out" | "completed";
+                taskType?: string;
+            };
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    task_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    task_outputs_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOutputs"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    task_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    session_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+        };
+    };
+    session_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionLogin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    session_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };
