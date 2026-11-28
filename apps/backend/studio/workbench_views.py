@@ -10,7 +10,7 @@ from django.middleware.csrf import get_token
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import APIException, ParseError, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -75,7 +75,31 @@ def read(method):
     return scoped(wrapper)
 
 
-class WorkbenchView(APIView):
+def _messages(value):
+    if isinstance(value, dict):
+        return [message for item in value.values() for message in _messages(item)]
+    if isinstance(value, list):
+        return [message for item in value for message in _messages(item)]
+    return [str(value)]
+
+
+def field_errors(exc):
+    """Normalize parse and validation errors to {field: [message, ...]}."""
+    if isinstance(exc, ParseError):
+        return ValidationError({"non_field_errors": [str(exc.detail)]})
+    detail = exc.detail if isinstance(exc.detail, dict) else {"non_field_errors": exc.detail}
+    return ValidationError({str(key): _messages(value) for key, value in detail.items()})
+
+
+# Every public 400 uses the published FieldErrors shape, including malformed JSON and unknown fields.
+class FieldErrorBodies:
+    def handle_exception(self, exc):
+        if isinstance(exc, (ParseError, ValidationError)):
+            exc = field_errors(exc)
+        return super().handle_exception(exc)
+
+
+class WorkbenchView(FieldErrorBodies, APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser]
@@ -89,7 +113,7 @@ def _query(serializer_class, request):
     return validated(serializer_class, request.query_params)
 
 
-class SessionView(APIView):
+class SessionView(FieldErrorBodies, APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]

@@ -143,6 +143,8 @@ def test_workbench_sessions_are_separate_from_service_credentials(settings, user
     assert browser.post("/api/v1/session", {"username": "director", "password": "studio-password"},
                         format="json").status_code == 403
     token = {"HTTP_X_CSRFTOKEN": browser.cookies["csrftoken"].value}
+    malformed = browser.post("/api/v1/session", "{", content_type="application/json", **token)
+    assert malformed.status_code == 400 and list(malformed.json()) == ["non_field_errors"]
     wrong = browser.post("/api/v1/session", {"username": "director", "password": "wrong"}, format="json", **token)
     assert wrong.status_code == 400 and wrong.json() == {"non_field_errors": ["Invalid username or password."]}
     login = browser.post("/api/v1/session", {"username": "director", "password": "studio-password"},
@@ -173,7 +175,11 @@ def test_create_start_inspect_pause_and_resume_real_production(api):
     conflict = api.post(PROJECTS, {"idea": "Another idea", "projectId": pid}, format="json")
     assert conflict.status_code == 409 and conflict.json()["code"] == "project_conflict"
     assert api.post(PROJECTS, {"idea": "   "}, format="json").status_code == 400
-    assert api.post(PROJECTS, {"idea": IDEA, "extra": 1}, format="json").status_code == 400
+    malformed = api.post(PROJECTS, "{", content_type="application/json")
+    assert malformed.status_code == 400 and list(malformed.json()) == ["non_field_errors"]
+    assert all(isinstance(message, str) for message in malformed.json()["non_field_errors"])
+    unknown = api.post(PROJECTS, {"idea": IDEA, "extra": 1}, format="json")
+    assert unknown.status_code == 400 and unknown.json() == {"extra": ["Unknown field."]}
     assert [item["id"] for item in get(api, PROJECTS)["results"]] == [pid]
 
     # Creation leaves production paused: the Worker claims nothing.
@@ -278,6 +284,8 @@ def test_create_start_inspect_pause_and_resume_real_production(api):
     assert (rest["scope"], rest["episode"]) == ("episode", episode_one)
     assert [card["assetKey"] for card in rest["results"]] == current_keys[2:]
     assert get(api, project_path(pid, "/assets"), status=400, scope="shared", cursor=first_page["nextCursor"])
+    assert get(api, project_path(pid, "/assets"), status=400, scope="episode", episodeId=episode_one["id"],
+               cursor=first_page["nextCursor"]) == {"cursor": ["Invalid cursor."]}
     episode_task.update(state=original_state)
 
     studio.run()
@@ -285,6 +293,10 @@ def test_create_start_inspect_pause_and_resume_real_production(api):
     assert (done["status"], done["progress"], done["currentEpisode"]) == ("completed", 1, None)
     assert post(api, project_path(pid, "/pause"), status=409)["code"] == "project_completed"
     assert get(api, project_path(pid, "/assets"))["scope"] == "shared"
+    shared_page = get(api, project_path(pid, "/assets"), limit=1)
+    assert shared_page["scope"] == "shared" and shared_page["nextCursor"]
+    assert get(api, project_path(pid, "/assets"), status=400, scope="shared", cursor=shared_page["nextCursor"])
+    assert get(api, project_path(pid, "/assets"), limit=1, cursor=shared_page["nextCursor"])["scope"] == "shared"
     assert node_ids(get(api, project_path(pid, "/task-tree"))) == [root]
 
     episodes = get(api, project_path(pid, "/episodes"))["results"]

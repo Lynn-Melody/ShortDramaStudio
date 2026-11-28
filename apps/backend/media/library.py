@@ -119,11 +119,12 @@ def _filter_kind(items, kind):
 
 def asset_list(project, current_episode, *, scope, episode_id=None, shot_id=None, kind=None, q=None, cursor, limit):
     items = _items(project).filter(Exists(AssetVersion.objects.filter(asset_id=OuterRef("pk"))))
-    episode = None
+    requested, episode = scope, None
     if scope == "current" and cursor:
         # Later pages keep the scope the first page resolved, even if production moved to another episode.
         context = cursor_context(cursor)
-        if not isinstance(context, dict) or context.get("scope") not in ("shared", "episode"):
+        if (not isinstance(context, dict) or context.get("requested") != "current"
+                or context.get("scope") not in ("shared", "episode")):
             raise invalid_cursor()
         scope, bound = context["scope"], context.get("episode")
         if scope == "episode":
@@ -149,7 +150,8 @@ def asset_list(project, current_episode, *, scope, episode_id=None, shot_id=None
         items = _filter_kind(items, kind)
     if q:
         items = items.filter(Q(title__icontains=q) | Q(asset_key__icontains=q))
-    context = {"scope": scope, "episode": episode.pk if episode else None}
+    # Cursors are valid only for the requested scope that issued them.
+    context = {"requested": requested, "scope": scope, "episode": episode.pk if episode else None}
     page, next_cursor = paginate(items, ASSET_KEYS, cursor=cursor, limit=limit, context=context)
     return {"scope": scope, "episode": episode_ref(episode), "results": _cards(project, page), "nextCursor": next_cursor}
 
