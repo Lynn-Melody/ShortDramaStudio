@@ -237,6 +237,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkflowResultStatus'
           description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
         '503':
           content:
             application/json:
@@ -303,6 +309,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowStatus'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+  /internal/v1/executions/{executionId}/uploads:
+    post:
+      operationId: executions_uploads_create
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowUploadRequest'
+        required: true
+      security:
+      - workflowService: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowUploadGrant'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
           description: ''
         '400':
           content:
@@ -397,6 +461,11 @@ components:
         * `video` - video
         * `subtitles` - subtitles
         * `timeline` - timeline
+    MethodEnum:
+      enum:
+      - PUT
+      type: string
+      description: '* `PUT` - PUT'
     Output:
       type: object
       properties:
@@ -661,6 +730,68 @@ components:
             deadline.
       required:
       - active
+    WorkflowUploadGrant:
+      type: object
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        objectKey:
+          type: string
+        method:
+          $ref: '#/components/schemas/MethodEnum'
+        url:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+      - expiresAt
+      - headers
+      - method
+      - objectKey
+      - uploadId
+      - url
+    WorkflowUploadRequest:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+        slot:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        sizeBytes:
+          type: integer
+          maximum: 5368709120
+          minimum: 1
+          format: int64
+        contentType:
+          type: string
+          maxLength: 200
+          pattern: ^[a-zA-Z0-9!#$&^_.+-]+/[a-zA-Z0-9!#$&^_.+-]+$
+      required:
+      - contentType
+      - executionId
+      - projectId
+      - schemaVersion
+      - sizeBytes
+      - slot
+      - taskId
   securitySchemes:
     workflowService:
       type: http

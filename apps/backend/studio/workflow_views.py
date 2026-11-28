@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from contracts import workflow_v1 as v1
 from contracts.production_v1 import Identifier, validated
+from media.uploads import authorize_upload
 from media.workflow_outputs import prepare_workflow_outputs
 from scheduler.models import Execution
 from scheduler.service import PROVIDER_CHECK, StateConflict
@@ -62,6 +63,19 @@ class CheckWorkflowStatus(WorkflowView):
         return Response({"active": configured_scheduler().workflow_is_current(execution.id)})
 
 
+class AuthorizeWorkflowUpload(WorkflowView):
+    @extend_schema(
+        request=v1.WorkflowUploadRequest,
+        responses={200: v1.WorkflowUploadGrant, 409: v1.WorkflowError, 503: v1.WorkflowError, **ERRORS},
+    )
+    def post(self, request, executionId):
+        data = validated(v1.WorkflowUploadRequest, request.data)
+        execution = self.execution(executionId, data)
+        return Response(authorize_upload(
+            execution, slot=data["slot"], size_bytes=data["sizeBytes"], content_type=data["contentType"],
+        ))
+
+
 class SubmitWorkflowResult(WorkflowView):
     @extend_schema(
         request=PolymorphicProxySerializer(
@@ -70,7 +84,7 @@ class SubmitWorkflowResult(WorkflowView):
             resource_type_field_name="outcome",
             many=False,
         ),
-        responses={200: v1.WorkflowResultStatus, 503: v1.WorkflowError, **ERRORS},
+        responses={200: v1.WorkflowResultStatus, 409: v1.WorkflowError, 503: v1.WorkflowError, **ERRORS},
     )
     def post(self, request, executionId):
         if not isinstance(request.data, dict):

@@ -140,7 +140,7 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 | `task_dependencies`、`task_waits` | 执行前置依赖及当前恢复前等待集合，同项目无环；只有位置已绑定且对应任务完成才满足等待 |
 | `task_executions`、`dispatch_outbox` | 每次尝试的请求快照、状态、截止时间和外部 job ID。每个任务至多一个正在执行的尝试，同次执行的本地决策和外部工作流各有一条派发记录 |
 | `asset_items`、`asset_versions` | 每项目用业务键归并同一份素材，版本不可变。保存类型、集与镜头范围、对象键、生成执行及必要的媒体元数据 |
-| `execution_uploads`、`execution_inputs`、`task_outputs` | 约束上传归属，记录每次执行采用的确切素材版本和实际产出。按执行及输出槽位做唯一约束 |
+| `execution_uploads`、执行输入快照、素材版本的上传关联 | 按执行及槽位唯一分配上传。每次执行采用的素材版本保存在输入快照，实际产出通过素材版本的上传记录追溯到执行和槽位 |
 | `episode_deliveries` | 每集的交付版本，关联成片、字幕和时间轴三份确切产物 |
 
 素材卡片按 `asset_item` 分组，生成执行引用用于追溯。采用标识从生产输入绑定推导，候选版本会产生独立引用。依赖任务领取时固定输入版本，重试复用该次生产任务已经固定的输入。调度定义和 Agent 配置版本随执行保存。数据库使用 UTC 时间，镜头时长与时间戳统一为整数毫秒。
@@ -182,7 +182,7 @@ child_total > 0 时：progress = 所有已绑定子任务的 progress 之和 / c
 
 内部 API 前缀为 `/internal/v1`，生产环境在内网上使用服务身份认证。平台向工作流传 `projectId`、`taskId`、`executionId`、`taskType`、`schemaVersion` 和 `deadlineAt`。工作流通过 `POST /executions/{executionId}/accept` 获得不可变输入快照和带角色的素材版本引用。首次接收返回 `accepted`，已接收或已终止时返回对应结果。身份字段、凭据和响应见[工作流接入](workflow-integration.md)。
 
-- 工作流经 `POST /executions/{executionId}/uploads` 申请专属对象键和短期上传地址。对象键按执行和槽位唯一分配，防止覆盖；所选存储支持时，再在签名中加入 `If-None-Match: *` 条件写入作为附加保护，不作为联调硬性要求。平台在提交前用 HEAD 校验对象存在及大小。
+- 工作流经 `POST /executions/{executionId}/uploads` 申请专属对象键和短期上传地址。对象键按执行和槽位唯一分配，签名 PUT 绑定文件大小、内容类型和 `If-None-Match: *`，由 MinIO 或支持条件写入的 S3 保证首次写入。平台在提交前用 HEAD 校验对象存在、大小及内容类型。详见[素材与交付接入](media-integration.md)。
 - 工作流在发起付费或耗时步骤前调用 `GET /executions/{executionId}/status`，若执行已过期、已终止或不再是任务的当前执行，则停止后续步骤，避免超时后继续产生费用。经 `POST /executions/{executionId}/result` 回传 `projectId`、`taskId`、`executionId`、`schemaVersion` 和 `outcome`。成功结果携带结构化 `data` 以及 `outputs[]`，每项包括 `slot`、`assetKey`、`kind`、`title` 和 `uploadId`。`slot` 在单次执行内唯一。失败结果携带稳定的 `errorCode` 和可展示说明。过期或重复结果返回幂等响应，结构错误返回校验错误。 [S3 条件写入](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
 - 外部媒体服务接受任务后，工作流经 `PUT /executions/{executionId}/provider-jobs/{stepKey}` 登记供应商和 job ID，重复登记相同 job ID 幂等。独立核查身份通过 `GET /executions/{executionId}/provider-check` 读取持久化快照，在确认工作流、在途请求和供应商作业后，通过同路径的 `POST` 提交所核查的快照。
 - Agent 服务提供内部 `POST /agent-runs` 与 `GET /agent-runs/{runId}`。请求给出 `role`、`executionId`、`stepKey` 和输入版本引用。平台为每个角色固定模型、提示词、工具和输出 schema 版本。同一执行内的相同步骤键返回同一个运行记录。工作流以结构化产物交接，上下游依赖已持久化的版本引用。

@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from rest_framework.exceptions import ValidationError
 
-from contracts.production_v1 import LEAVES, VERSION, validate_leaf_input, validate_leaf_success
+from contracts.production_v1 import AssetRef, LEAVES, VERSION, validate_leaf_input, validate_leaf_success, validated
+from contracts.workflow_v1 import WorkflowCompleted, WorkflowUploadRequest
 
 
-SAMPLES = json.loads(
-    (Path(__file__).resolve().parents[3] / "contracts" / "production-v1.examples.json").read_text(encoding="utf-8")
-)
+CONTRACTS_DIR = Path(__file__).resolve().parents[3] / "contracts"
+SAMPLES = json.loads((CONTRACTS_DIR / "production-v1.examples.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("task_type", LEAVES)
@@ -21,6 +21,23 @@ def test_published_v1_example(task_type):
     assert example["workflow"] == LEAVES[task_type][0]
     assert validate_leaf_input(task_type, example["input"]) == example["input"]
     assert validate_leaf_success(task_type, example["input"], example["result"]) == example["result"]
+
+
+def test_published_media_delivery_example():
+    sample = json.loads((CONTRACTS_DIR / "media-v1.examples.json").read_text(encoding="utf-8"))
+    assert sample["schemaVersion"] == VERSION
+    example = sample["episodeEdit"]
+    uploads = [validated(WorkflowUploadRequest, body) for body in example["uploadRequests"]]
+    completed = validated(WorkflowCompleted, example["completion"])
+    assert [body["slot"] for body in uploads] == [item["slot"] for item in completed["outputs"]]
+    assert example["videoUploadGrant"]["uploadId"] == completed["outputs"][0]["uploadId"]
+    case = SAMPLES["tasks"]["episode_edit"]
+    assert validate_leaf_success("episode_edit", case["input"], {
+        "data": completed["data"], "outputs": completed["outputs"],
+    }) == case["result"]
+    for output in completed["outputs"]:
+        ref = validated(AssetRef, example["persistedDeliveryRefs"][output["slot"]])
+        assert (ref["assetKey"], ref["kind"]) == (output["assetKey"], output["kind"])
 
 
 @pytest.mark.parametrize(("task_type", "field", "value"), [

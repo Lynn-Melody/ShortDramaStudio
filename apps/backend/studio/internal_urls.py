@@ -1,7 +1,10 @@
 from django.urls import path, register_converter
 
 from .health import readiness
-from .workflow_views import AcceptWorkflow, CheckWorkflowStatus, ProviderCheck, RegisterProviderJob, SubmitWorkflowResult
+from .workflow_views import (
+    AcceptWorkflow, AuthorizeWorkflowUpload, CheckWorkflowStatus, ProviderCheck, RegisterProviderJob,
+    SubmitWorkflowResult,
+)
 
 
 class StepKeyConverter:
@@ -21,6 +24,7 @@ urlpatterns = [
     path("internal/v1/health", readiness, name="readiness"),
     path(f"{execution}/accept", AcceptWorkflow.as_view(), name="workflow-accept"),
     path(f"{execution}/status", CheckWorkflowStatus.as_view(), name="workflow-status"),
+    path(f"{execution}/uploads", AuthorizeWorkflowUpload.as_view(), name="workflow-upload"),
     path(f"{execution}/result", SubmitWorkflowResult.as_view(), name="workflow-result"),
     path(f"{execution}/provider-jobs/<step_key:stepKey>", RegisterProviderJob.as_view(), name="workflow-provider-job"),
     path(f"{execution}/provider-check", ProviderCheck.as_view(), name="workflow-provider-check"),

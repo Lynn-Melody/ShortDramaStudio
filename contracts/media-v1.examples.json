@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1",
+  "episodeEdit": {
+    "uploadRequests": [
+      {
+        "projectId": "00000000-0000-4000-8000-000000000001",
+        "taskId": "00000000-0000-4000-8000-000000000002",
+        "executionId": "00000000-0000-4000-8000-000000000003",
+        "schemaVersion": "1",
+        "slot": "video",
+        "sizeBytes": 1048576,
+        "contentType": "video/mp4"
+      },
+      {
+        "projectId": "00000000-0000-4000-8000-000000000001",
+        "taskId": "00000000-0000-4000-8000-000000000002",
+        "executionId": "00000000-0000-4000-8000-000000000003",
+        "schemaVersion": "1",
+        "slot": "subtitles",
+        "sizeBytes": 512,
+        "contentType": "text/vtt"
+      },
+      {
+        "projectId": "00000000-0000-4000-8000-000000000001",
+        "taskId": "00000000-0000-4000-8000-000000000002",
+        "executionId": "00000000-0000-4000-8000-000000000003",
+        "schemaVersion": "1",
+        "slot": "timeline",
+        "sizeBytes": 1024,
+        "contentType": "application/json"
+      }
+    ],
+    "videoUploadGrant": {
+      "uploadId": "00000000-0000-4000-8000-000000000017",
+      "objectKey": "projects/00000000-0000-4000-8000-000000000001/executions/00000000-0000-4000-8000-000000000003/00000000-0000-4000-8000-000000000017",
+      "method": "PUT",
+      "url": "http://minio:9000/studio-dev/projects/00000000-0000-4000-8000-000000000001/executions/00000000-0000-4000-8000-000000000003/00000000-0000-4000-8000-000000000017?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20261128T120000Z&X-Amz-Expires=300&X-Amz-Signature=example",
+      "headers": {
+        "Content-Type": "video/mp4",
+        "Content-Length": "1048576",
+        "If-None-Match": "*"
+      },
+      "expiresAt": "2026-11-28T12:05:00Z"
+    },
+    "completion": {
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "taskId": "00000000-0000-4000-8000-000000000002",
+      "executionId": "00000000-0000-4000-8000-000000000003",
+      "schemaVersion": "1",
+      "outcome": "completed",
+      "data": {},
+      "outputs": [
+        {
+          "slot": "video",
+          "assetKey": "production:e1:video",
+          "kind": "video",
+          "title": "e1.video",
+          "uploadId": "00000000-0000-4000-8000-000000000017"
+        },
+        {
+          "slot": "subtitles",
+          "assetKey": "production:e1:subtitles",
+          "kind": "subtitles",
+          "title": "e1.subtitles",
+          "uploadId": "00000000-0000-4000-8000-000000000018"
+        },
+        {
+          "slot": "timeline",
+          "assetKey": "production:e1:timeline",
+          "kind": "timeline",
+          "title": "e1.timeline",
+          "uploadId": "00000000-0000-4000-8000-000000000019"
+        }
+      ]
+    },
+    "completionResponse": {
+      "status": "applied"
+    },
+    "persistedDeliveryRefs": {
+      "video": {
+        "assetKey": "production:e1:video",
+        "kind": "video",
+        "versionId": "00000000-0000-4000-8000-000000000021"
+      },
+      "subtitles": {
+        "assetKey": "production:e1:subtitles",
+        "kind": "subtitles",
+        "versionId": "00000000-0000-4000-8000-000000000022"
+      },
+      "timeline": {
+        "assetKey": "production:e1:timeline",
+        "kind": "timeline",
+        "versionId": "00000000-0000-4000-8000-000000000023"
+      }
+    }
+  }
+}
