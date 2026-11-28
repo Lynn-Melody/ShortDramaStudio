@@ -20,18 +20,13 @@ export function AssetLibrary({ project, output, onCloseOutput }: {
   const [expanded, setExpanded] = useState(false)
   const [preview, setPreview] = useState<{ version: AssetVersion; title: string } | null>(null)
   const list = useRef<HTMLDivElement>(null)
+  const outputList = useRef<HTMLDivElement>(null)
+  // The library scroll is recorded while it is visible, so the output view cannot overwrite it.
   const savedScroll = useRef(0)
   const dialog = useRef<HTMLDialogElement>(null)
 
-  useEffect(() => {
-    setFilters(DEFAULT_FILTERS)
-    savedScroll.current = 0
-  }, [project.id])
-
-  // Entering an output view remembers the library scroll; leaving restores it.
   const wasOutput = useRef(false)
   useLayoutEffect(() => {
-    if (output && !wasOutput.current) savedScroll.current = list.current?.scrollTop ?? 0
     if (!output && wasOutput.current && list.current) list.current.scrollTop = savedScroll.current
     wasOutput.current = Boolean(output)
   })
@@ -51,9 +46,13 @@ export function AssetLibrary({ project, output, onCloseOutput }: {
           <button type="button" onClick={() => setExpanded(!expanded)}>{expanded ? '收起' : '展开'}</button>
         </div>
       </div>
-      {output
-        ? <OutputList project={project} output={output} onBack={onCloseOutput} onPreview={setPreview} listRef={list} />
-        : <Library project={project} filters={filters} setFilters={setFilters} onPreview={setPreview} listRef={list} />}
+      {output && (
+        <OutputList project={project} output={output} onBack={onCloseOutput} onPreview={setPreview} listRef={outputList} />
+      )}
+      <div className="library-body" hidden={Boolean(output)}>
+        <Library project={project} filters={filters} setFilters={setFilters} onPreview={setPreview} listRef={list}
+          onScroll={top => { if (!output) savedScroll.current = top }} />
+      </div>
     </section>
   )
 
@@ -79,9 +78,10 @@ type ListProps = {
   listRef: React.RefObject<HTMLDivElement | null>
 }
 
-function Library({ project, filters, setFilters, onPreview, listRef }: ListProps & {
+function Library({ project, filters, setFilters, onPreview, listRef, onScroll }: ListProps & {
   filters: LibraryFilters
   setFilters: (filters: LibraryFilters) => void
+  onScroll: (top: number) => void
 }) {
   const interval = usePollInterval()
   const tab = ASSET_TABS[filters.tab]
@@ -97,16 +97,29 @@ function Library({ project, filters, setFilters, onPreview, listRef }: ListProps
     queryKey: ['shots', project.id, resolvedEpisodeId],
     queryFn: () => api.shots(project.id, resolvedEpisodeId!),
     enabled: resolvedEpisodeId !== undefined,
+    // Shots appear when the episode breakdown completes.
+    refetchInterval: interval,
   })
+  // A shot filter only applies within its episode; drop it when the current episode moves on.
+  const shotEpisode = useRef(resolvedEpisodeId)
+  useEffect(() => {
+    if (shotEpisode.current !== resolvedEpisodeId && filters.shotId !== null) {
+      setFilters({ ...filters, shotId: null })
+    }
+    shotEpisode.current = resolvedEpisodeId
+  }, [resolvedEpisodeId, filters, setFilters])
+  const shotId = filters.shotId !== null && shots.data?.results.some(shot => shot.id === filters.shotId)
+    ? filters.shotId : null
   const query = {
     ...scope,
     kind: tab.kind === 'documents' ? undefined : tab.kind ?? undefined,
-    shotId: filters.shotId ?? undefined,
+    shotId: shotId ?? undefined,
     q: filters.q.trim() || undefined,
     limit: 60,
   }
   const assets = useInfiniteQuery({
-    queryKey: ['assets', project.id, query],
+    // The resolved episode keys current-scope pages, so a new current episode starts a new listing.
+    queryKey: ['assets', project.id, query, resolvedEpisodeId],
     queryFn: ({ pageParam }) => api.assets(project.id, { ...query, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
@@ -146,20 +159,24 @@ function Library({ project, filters, setFilters, onPreview, listRef }: ListProps
               <option key={episode.id} value={`episode:${episode.id}`}>第 {episode.number} 集 · {episode.title}</option>
             ))}
           </select>
-          <select aria-label="镜头" value={filters.shotId ?? ''} disabled={!shots.data}
+          <select aria-label="镜头" value={shotId ?? ''} disabled={!shots.data}
             onChange={event => update({ shotId: event.target.value ? Number(event.target.value) : null })}>
             <option value="">全部镜头</option>
             {shots.data?.results.map(shot => <option key={shot.id} value={shot.id}>镜头 {shot.number}</option>)}
           </select>
         </div>
       </div>
-      <div ref={listRef} className="asset-list">
+      <div ref={listRef} className="asset-list" onScroll={event => onScroll(event.currentTarget.scrollTop)}>
         {tab.kind === 'documents'
           ? <Documents project={project} episodeId={resolvedEpisodeId} />
           : (
             <>
               {scopeLabel && <p className="asset-count">{scopeLabel} · {cards.length}{assets.hasNextPage ? '+' : ''} 份素材</p>}
-              {tab.kind === 'delivery' && <Deliveries projectId={project.id} episodeId={resolvedEpisodeId} onPreview={onPreview} />}
+              {/* Delivery groups follow the same scope; shared assets have none, and shot or name filters narrow
+                  the cards below instead. */}
+              {tab.kind === 'delivery' && resolved && resolved.scope !== 'shared' && !shotId && !filters.q.trim() && (
+                <Deliveries projectId={project.id} episodeId={resolved.episode?.id} onPreview={onPreview} />
+              )}
               {assets.isError && <p role="alert" className="error">素材加载失败：{(assets.error as Error).message}</p>}
               {assets.isSuccess && !cards.length && <p className="empty">当前范围内还没有素材</p>}
               {cards.map(card => <AssetCardView key={card.id} projectId={project.id} card={card} onPreview={onPreview} />)}
@@ -210,9 +227,11 @@ function Deliveries({ projectId, episodeId, onPreview }: {
   episodeId: number | undefined
   onPreview: ListProps['onPreview']
 }) {
+  const interval = usePollInterval()
   const deliveries = useQuery<DeliveryList>({
     queryKey: ['deliveries', projectId, episodeId],
     queryFn: () => api.deliveries(projectId, episodeId),
+    refetchInterval: interval,
   })
   return (
     <>
@@ -325,6 +344,13 @@ function OutputList({ project, output, onBack, onPreview, listRef }: ListProps &
   )
 }
 
+const REFRESH_BEFORE_EXPIRY_MS = 30_000
+
+export function refreshDelay(expiresAt: string | undefined, now = Date.now()) {
+  if (!expiresAt) return false
+  return Math.max(5_000, Date.parse(expiresAt) - now - REFRESH_BEFORE_EXPIRY_MS)
+}
+
 function PreviewDialog({ projectId, version, title, onClose }: {
   projectId: string
   version: AssetVersion
@@ -335,16 +361,22 @@ function PreviewDialog({ projectId, version, title, onClose }: {
   const signed = useQuery({
     queryKey: ['preview', projectId, version.id],
     queryFn: () => api.preview(projectId, version.id),
-    // Signed reads last five minutes; refresh before they lapse and never reuse a stale one.
-    staleTime: 4 * 60_000,
     gcTime: 0,
-    refetchInterval: 4 * 60_000,
+    // Re-sign shortly before the signature's own expiry; hidden tabs re-sign when they return.
+    refetchInterval: query => refreshDelay(query.state.data?.expiresAt),
+    refetchOnWindowFocus: 'always',
   })
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5_000)
+    return () => clearInterval(timer)
+  }, [])
   useEffect(() => {
     dialog.current?.showModal()
   }, [])
   const kind = previewKind(version.contentType)
-  const url = signed.data?.url
+  const current = signed.data && Date.parse(signed.data.expiresAt) > now ? signed.data : null
+  const url = current?.url
   return (
     <dialog ref={dialog} className="asset-dialog" aria-label={`预览 ${title}`} onClose={onClose}>
       <div className="dialog-heading">
@@ -356,7 +388,15 @@ function PreviewDialog({ projectId, version, title, onClose }: {
         {version.adopted ? ' · 已采用' : ''}
       </p>
       <div className="preview-body">
-        {signed.isError && <p role="alert" className="error">预览不可用：{(signed.error as Error).message}</p>}
+        {signed.isError && (
+          <p role="alert" className="error">
+            预览不可用：{(signed.error as Error).message}
+            <button type="button" onClick={() => signed.refetch()}>重新签发</button>
+          </p>
+        )}
+        {signed.data && !current && !signed.isFetching && (
+          <p className="error">预览地址已过期 <button type="button" onClick={() => signed.refetch()}>重新签发</button></p>
+        )}
         {url && kind === 'image' && <img src={url} alt={title} />}
         {url && kind === 'video' && <video src={url} controls preload="metadata" aria-label={title} />}
         {url && kind === 'audio' && <audio src={url} controls preload="metadata" aria-label={title} />}

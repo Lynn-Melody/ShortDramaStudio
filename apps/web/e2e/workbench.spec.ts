@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { advance, completeWhenRunning, createProject, signIn } from './studio'
+import { completeWhenRunning, createProject, signIn, snapshot } from './studio'
 
 const header = (page: Page) => page.locator('.project-header')
 const canvas = (page: Page) => page.getByLabel('任务画布')
@@ -56,13 +56,20 @@ test('create, start, watch progress and open a registered asset version', async 
   await expect(card).toContainText('已采用')
   await card.getByText('2 个版本').click()
   await expect(card.getByRole('button', { name: /版本 1/ })).toBeVisible()
-  await card.getByRole('button', { name: /版本 2/ }).click()
   const preview = page.getByRole('dialog', { name: '预览 mei' })
   const image = preview.getByRole('img', { name: 'mei' })
-  await expect(image).toBeVisible()
-  await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBe(1)
-  await expect(preview).toContainText('image/png')
-  await preview.getByRole('button', { name: '关闭预览' }).click()
+  const width = () => image.evaluate(element => (element as HTMLImageElement).naturalWidth)
+  // Version 2 is the adopted 1x1 image; version 1 is the 2x1 candidate. Each preview signs its own version.
+  for (const [label, expected] of [['版本 2', 1], ['版本 1', 2]] as const) {
+    const signed = page.waitForResponse(response => /\/asset-versions\/[^/]+\/preview$/.test(response.url()))
+    await card.getByRole('button', { name: new RegExp(label) }).click()
+    const body = await (await signed).json()
+    expect(body.url).toContain('X-Amz-Signature')
+    await expect(image).toBeVisible()
+    await expect.poll(width).toBe(expected)
+    await expect(preview).toContainText('image/png')
+    await preview.getByRole('button', { name: '关闭预览' }).click()
+  }
 })
 
 test('pause lets running work finish, drill-down returns, outputs and theme keep the view', async ({ page }) => {
@@ -75,14 +82,19 @@ test('pause lets running work finish, drill-down returns, outputs and theme keep
   await expect(header(page).getByRole('status')).toHaveText('已暂停')
   await expect(header(page)).toContainText('1 个运行中的任务正在收尾')
   await completeWhenRunning(project.id, 'series_plan')
-  // The running plan finished while paused; nothing new is dispatched.
+  // The running plan finished while paused; across several Worker cycles nothing new is claimed.
   await expect(header(page).locator('.progress-label strong')).toHaveText('33%')
-  await page.waitForTimeout(2500)
-  expect(advance(project.id).running).toEqual([])
+  const settled = snapshot(project.id)
+  expect(settled.running).toEqual([])
+  for (let check = 0; check < 4; check++) {
+    await page.waitForTimeout(1000)
+    expect(snapshot(project.id)).toMatchObject({ running: [], executions: settled.executions })
+  }
   await expect(node(page, '短剧制作')).toBeVisible()
   await expect(canvas(page).getByRole('group')).toHaveCount(1)
 
   await header(page).getByRole('button', { name: '▶ 继续' }).click()
+  await expect.poll(() => snapshot(project.id).executions).toBeGreaterThan(settled.executions)
   await expect(node(page, '全局关键素材')).toBeVisible()
   await expect(canvas(page).getByRole('group')).toHaveCount(5)
 
@@ -102,24 +114,36 @@ test('pause lets running work finish, drill-down returns, outputs and theme keep
   await expect(page.locator('.graph-heading h2')).toHaveText('短剧制作')
   await page.getByRole('button', { name: '返回上一层' }).click()
   await expect(page.locator('.graph-heading h2')).toHaveText('运行路径')
+  await expect(node(page, '短剧制作')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.locator('.graph-heading h2')).toHaveText('短剧制作')
+  await expect(node(page, '短剧制作')).toBeFocused()
+  await page.getByRole('button', { name: '返回上一层' }).click()
+  await expect(page.locator('.graph-heading h2')).toHaveText('运行路径')
   await expect(page.locator('.view-tools span')).toHaveText(zoom!)
   await expect(page.getByRole('button', { name: '返回上一层' })).toHaveCount(0)
 
   // A task's outputs replace the library and the back button restores the filters.
   await completeWhenRunning(project.id, 'scene_asset')
   const library = page.getByRole('region', { name: '素材库' })
-  await library.getByLabel('范围').selectOption('shared')
-  await library.getByLabel('搜索素材名称').fill('station')
+  await library.getByLabel('范围').selectOption('all')
+  await expect(library.getByRole('article').first()).toBeVisible()
+  const list = library.locator('.library-body .asset-list')
+  await list.evaluate(element => { element.style.maxHeight = '160px' })
+  await list.evaluate(element => { element.scrollTop = 120 })
+  const scrolled = await list.evaluate(element => element.scrollTop)
+  expect(scrolled).toBeGreaterThan(0)
   await node(page, '短剧制作').dblclick()
   await node(page, '全局关键素材').dblclick()
   const station = canvas(page).getByRole('group', { name: /^场景素材 · Station，完成/ })
   await station.click()
   await page.getByRole('button', { name: '查看 2 个产出' }).click()
   await expect(library.getByRole('button', { name: '← 返回素材库' })).toBeFocused()
-  await expect(library.getByRole('article')).toHaveCount(2)
+  await expect(library.locator('.output-heading + .asset-list').getByRole('article')).toHaveCount(2)
   await library.getByRole('button', { name: '← 返回素材库' }).click()
-  await expect(library.getByLabel('搜索素材名称')).toHaveValue('station')
-  await expect(library.getByLabel('范围')).toHaveValue('shared')
+  await expect(library.getByLabel('范围')).toHaveValue('all')
+  expect(await list.evaluate(element => element.scrollTop)).toBe(scrolled)
+  await library.getByLabel('搜索素材名称').fill('station')
 
   // Theme switches keep the subtree and filters, and persist across reloads.
   await page.getByRole('button', { name: '切换深色主题' }).click()
@@ -160,4 +184,10 @@ test('invalid sign-in and empty ideas report errors', async ({ page }) => {
   await page.getByRole('button', { name: '＋ 新建' }).click()
   await page.getByLabel('短剧 Idea').fill('   ')
   await expect(page.getByRole('button', { name: '创建项目' })).toBeDisabled()
+  await page.getByRole('button', { name: '关闭' }).click()
+
+  await page.getByRole('button', { name: '退出' }).click()
+  await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '项目' })).toHaveCount(0)
+  await signIn(page)
 })

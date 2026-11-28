@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ReactFlowProvider } from '@xyflow/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { afterLogout, afterSwitch } from './actions'
 import { AssetLibrary } from './AssetLibrary'
 import { api, ApiError, type ProjectDetail, type ProjectSummary, rememberCsrf, type Session } from './api'
 import { usePollInterval } from './hooks'
@@ -46,8 +47,9 @@ export function App() {
           {session.data?.authenticated && (
             <button type="button" onClick={async () => {
               await api.logout()
-              client.clear()
-              await client.invalidateQueries({ queryKey: ['session'] })
+              const anonymous = await api.session()
+              rememberCsrf(anonymous)
+              afterLogout(client, anonymous)
             }}>退出</button>
           )}
         </div>
@@ -136,11 +138,12 @@ function Workbench() {
         <>
           <section className="production" aria-label="项目制作">
             <ProjectHeader project={project.data} />
-            <ReactFlowProvider>
+            <ReactFlowProvider key={project.data.id}>
               <TaskTree project={project.data} onShowOutputs={setOutput} />
             </ReactFlowProvider>
           </section>
-          <AssetLibrary project={project.data} output={output} onCloseOutput={() => setOutput(null)} />
+          <AssetLibrary key={project.data.id} project={project.data} output={output}
+            onCloseOutput={() => setOutput(null)} />
         </>
       ) : (
         <section className="production placeholder pane">
@@ -176,11 +179,7 @@ function ProjectHeader({ project }: { project: ProjectDetail }) {
   const status = PROJECT_STATUS[project.status]
   const toggle = useMutation({
     mutationFn: () => (control!.action === 'pause' ? api.pause(project.id) : api.resume(project.id)),
-    onSuccess: async summary => {
-      client.setQueryData<ProjectDetail>(['project', project.id], current => current && { ...current, ...summary })
-      await client.invalidateQueries({ queryKey: ['projects'] })
-      await client.invalidateQueries({ queryKey: ['project', project.id] })
-    },
+    onSuccess: summary => afterSwitch(client, summary),
   })
   const notes = projectNotes(project)
   const value = percent(project.progress)

@@ -92,6 +92,13 @@ export function detailSide(node: { y: number } | undefined, view: Viewport, heig
   return node && view.y + node.y * view.zoom > height / 2 ? 'top' : 'bottom'
 }
 
+/** The card is limited to the half of the canvas opposite the dot, so it never covers it. */
+export const DETAIL_MARGIN = 12
+
+export function detailMaxHeight(height: number) {
+  return Math.max(96, height / 2 - DETAIL_MARGIN * 2)
+}
+
 export function viewKey(projectId: string, path: string[]) {
   return [projectId, ...path].join('/')
 }

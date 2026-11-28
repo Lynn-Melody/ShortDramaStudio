@@ -7,7 +7,9 @@ storage, so the workbench previews real signed objects.
 """
 
 import json
+import struct
 import sys
+import zlib
 from contextlib import closing
 from pathlib import Path
 
@@ -26,10 +28,20 @@ from test_production import fake_result  # noqa: E402
 
 USERNAME = "e2e-director"
 PASSWORD = "e2e-studio-password"
-PNG = bytes.fromhex(
-    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000d49444154789c6360f8cfc0f01f0005fe02fea3d5b10b0000000049454e44ae426082"
-)
+
+
+def _png(width):
+    """A transparent width x 1 PNG, so test versions differ in their decoded width."""
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    header = struct.pack(">IIBBBBB", width, 1, 8, 6, 0, 0, 0)
+    signature = bytes([0x89]) + b'PNG' + bytes([13, 10, 26, 10])
+    row = bytes(1 + 4 * width)  # filter byte, then transparent RGBA pixels
+    return signature + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(row)) + chunk(b"IEND", b"")
+
+
+# The adopted ("chosen") image is 1x1; the candidate version is 2x1.
+PNG, PNG2 = _png(1), _png(2)
 BODIES = {
     "image/png": PNG, "audio/mpeg": b"ID3 fixture audio", "video/mp4": b"fixture video",
     "text/vtt": b"WEBVTT\n\n00:00.000 --> 00:01.000\nWait!\n", "application/json": b'{"shots": []}',
@@ -51,7 +63,8 @@ def _upload(execution, outputs):
     with closing(storage_client()) as client:
         for item in outputs:
             content_type = CONTENT_TYPES[item["kind"]]
-            body = BODIES[content_type]
+            # Candidate slots get distinct bytes so a test can tell versions apart; PNGs differ in width.
+            body = BODIES[content_type] if content_type != "image/png" else (PNG if item["slot"] != "candidate" else PNG2)
             grant = authorize_upload(execution, slot=item["slot"], size_bytes=len(body), content_type=content_type)
             upload = execution.uploads.get(pk=grant["uploadId"])
             client.put_object(Bucket=upload.bucket, Key=upload.object_key, Body=body, ContentType=content_type)
@@ -84,10 +97,12 @@ def advance(project_id, task_types=None, fail=None):
 
 
 def state(project_id):
+    """Read-only snapshot: running task types and how many executions the project has had."""
     tasks = Task.objects.filter(schedule_id=project_id)
     return {
         "running": sorted(set(tasks.filter(state=TaskState.RUNNING).values_list("task_type", flat=True))),
         "rootState": tasks.get(parent__isnull=True).state,
+        "executions": Execution.objects.filter(task__schedule_id=project_id).count(),
     }
 
 

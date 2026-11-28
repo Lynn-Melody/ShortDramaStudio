@@ -4,10 +4,11 @@ import {
   type Viewport as FlowViewport,
 } from '@xyflow/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { afterRetry } from './actions'
 import { api, ApiError, type ProjectSummary, type TaskNode } from './api'
 import { usePollInterval } from './hooks'
 import {
-  blockedMessage, centreOn, detailSide, fitViewport, formatTime, layoutTree, type PositionedNode, STATE_LABELS,
+  blockedMessage, centreOn, detailMaxHeight, detailSide, fitViewport, formatTime, layoutTree, type PositionedNode, STATE_LABELS,
   type Viewport, viewKey,
 } from './model'
 
@@ -35,6 +36,12 @@ const MAX_ZOOM = 2
 /** Saved canvas viewports per project and drill-down path, kept for the page lifetime. */
 const savedViews = new Map<string, Viewport>()
 
+function isVisible(node: { x: number; y: number }, view: Viewport, size: { width: number; height: number }) {
+  const x = view.x + node.x * view.zoom
+  const y = view.y + node.y * view.zoom
+  return x > 24 && y > 24 && x < size.width - 24 && y < size.height - 24
+}
+
 export function TaskTree({ project, onShowOutputs }: {
   project: ProjectSummary
   onShowOutputs: (task: { id: string; name: string }) => void
@@ -49,11 +56,8 @@ export function TaskTree({ project, onShowOutputs }: {
   const current = levels.at(-1)?.rootTaskId ?? null
   const key = viewKey(project.id, levels.map(level => level.rootTaskId))
 
-  useEffect(() => {
-    setLevels([])
-    setSelected(null)
-    setView(null)
-  }, [project.id])
+  // Focus and centre on this task once its level has rendered (drill-down, return or locate).
+  const [focusTarget, setFocusTarget] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     const element = box.current
@@ -74,25 +78,38 @@ export function TaskTree({ project, onShowOutputs }: {
   const positions = useMemo(() => new Map(layout.nodes.map(node => [node.id, node])), [layout])
 
   // Restore the level's saved viewport, or fit when it is first shown. Polling keeps the user's view.
+  // Only data for the level being shown may fit or restore, so a previous level's tree cannot leak in.
+  const levelData = tree.data && (current === null ? tree.data.view === 'running' : tree.data.rootTaskId === current)
   useEffect(() => {
-    if (!tree.data || !size.width) return
+    if (!levelData || !size.width) return
     setView(existing => existing ?? savedViews.get(key) ?? fitViewport(layout, size.width, size.height))
-  }, [tree.data, key, layout, size])
-  useEffect(() => {
-    if (view) savedViews.set(key, view)
-  }, [view, key])
+  }, [levelData, key, layout, size])
 
-  const changeLevel = (next: Level[]) => {
+  useEffect(() => {
+    if (!focusTarget || !view) return
+    const target = positions.get(focusTarget)
+    if (!target) return
+    setFocusTarget(null)
+    if (!isVisible(target, view, size)) setView(centreOn(target, view, size.width, size.height))
+    requestAnimationFrame(() => {
+      box.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(target.id)}"]`)
+        ?.focus({ preventScroll: true })
+    })
+  }, [focusTarget, positions, view, size])
+
+  // Leaving a level saves its viewport under the level's own key.
+  const changeLevel = (next: Level[], focus: string | null) => {
     if (view) savedViews.set(key, view)
     setLevels(next)
     setSelected(null)
     setView(null)
+    setFocusTarget(focus)
   }
   const enter = (task: { id: string; name: string }) => {
     if (task.id === current) return
-    changeLevel([...levels, { rootTaskId: task.id, name: task.name }])
+    changeLevel([...levels, { rootTaskId: task.id, name: task.name }], task.id)
   }
-  const back = () => changeLevel(levels.slice(0, -1))
+  const back = () => changeLevel(levels.slice(0, -1), current)
   const fit = () => setView(fitViewport(layout, size.width, size.height))
   // Zoom around the canvas centre, like the prototype's buttons.
   const zoomBy = (factor: number) => setView(current => {
@@ -140,7 +157,7 @@ export function TaskTree({ project, onShowOutputs }: {
     const parent = target.path.at(-1)
     if (!parent) return
     const parentNode = await api.task(project.id, parent)
-    changeLevel([...levels, { rootTaskId: parent, name: parentNode.name }])
+    changeLevel([...levels, { rootTaskId: parent, name: parentNode.name }], target.id)
     setSelected(target.id)
   }
 
@@ -213,7 +230,11 @@ export function TaskTree({ project, onShowOutputs }: {
             projectId={project.id}
             taskId={selectedNode.id}
             side={view ? detailSide(selectedNode, view, size.height) : 'bottom'}
-            onClose={() => setSelected(null)}
+            maxHeight={detailMaxHeight(size.height)}
+            onClose={() => {
+              setSelected(null)
+              setFocusTarget(selectedNode.id)
+            }}
             onOpenSubtree={() => enter(selectedNode)}
             onShowOutputs={onShowOutputs}
           />
@@ -235,10 +256,11 @@ export function TaskTree({ project, onShowOutputs }: {
   )
 }
 
-function TaskDetailCard({ projectId, taskId, side, onClose, onOpenSubtree, onShowOutputs }: {
+function TaskDetailCard({ projectId, taskId, side, maxHeight, onClose, onOpenSubtree, onShowOutputs }: {
   projectId: string
   taskId: string
   side: 'top' | 'bottom'
+  maxHeight: number
   onClose: () => void
   onOpenSubtree: () => void
   onShowOutputs: (task: { id: string; name: string }) => void
@@ -259,11 +281,7 @@ function TaskDetailCard({ projectId, taskId, side, onClose, onOpenSubtree, onSho
     setBusy(true)
     setError(null)
     try {
-      const updated = await api.retry(projectId, taskId)
-      client.setQueryData(['task', projectId, taskId], updated)
-      await client.invalidateQueries({ queryKey: ['task-tree', projectId] })
-      await client.invalidateQueries({ queryKey: ['project', projectId] })
-      await client.invalidateQueries({ queryKey: ['projects'] })
+      await afterRetry(client, projectId, await api.retry(projectId, taskId))
     } catch (exc) {
       setError(exc instanceof ApiError && exc.code === 'provider_check_pending'
         ? '待核查供应商任务，暂不能重试。'
@@ -278,6 +296,7 @@ function TaskDetailCard({ projectId, taskId, side, onClose, onOpenSubtree, onSho
     <div
       className="task-detail"
       data-side={side}
+      style={{ maxHeight }}
       role="dialog"
       aria-label="任务详情"
       onDoubleClick={event => event.stopPropagation()}

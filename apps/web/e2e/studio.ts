@@ -18,13 +18,22 @@ export function studio<T>(command: Record<string, unknown>): T {
   const [program, args] = mode === 'local'
     ? ['uv', ['run', '--locked', 'python', 'apps/backend/manage.py', 'shell', '-c', runner]]
     : ['docker', ['compose', 'exec', '-T', 'api', 'python', 'apps/backend/manage.py', 'shell', '-c', runner]]
-  const output = execFileSync(program, args, { cwd: repository, input: script, encoding: 'utf8' })
+  const output = execFileSync(program, args, { cwd: repository, input: script, encoding: 'utf8', timeout: 60_000 })
   const line = output.split(/\r?\n/).find(text => text.startsWith('FIXTURE:'))
   if (!line) throw new Error(`Fixture produced no result:\n${output}`)
   return JSON.parse(line.slice('FIXTURE:'.length)) as T
 }
 
-export type FixtureState = { running: string[]; rootState: string; done?: { taskType: string; status: string }[] }
+export type FixtureState = {
+  running: string[]
+  rootState: string
+  executions: number
+  done?: { taskType: string; status: string }[]
+}
+
+export function snapshot(projectId: string) {
+  return studio<FixtureState>({ action: 'state', projectId })
+}
 
 export function advance(projectId: string, options: { taskTypes?: string[]; fail?: string } = {}) {
   return studio<FixtureState>({ action: 'advance', projectId, ...options })
