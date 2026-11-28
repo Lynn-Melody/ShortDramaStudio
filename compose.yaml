@@ -75,6 +75,8 @@ services:
     command: ["python", "apps/backend/manage.py", "runserver", "0.0.0.0:8000"]
     environment:
       <<: [*studio-env, *s3-env]
+      STUDIO_WORKFLOW_SERVICE_TOKEN: ${STUDIO_WORKFLOW_SERVICE_TOKEN:-}
+      STUDIO_WORKFLOW_VERIFIER_TOKEN: ${STUDIO_WORKFLOW_VERIFIER_TOKEN:-}
     volumes:
       - ./apps/backend:/workspace/apps/backend
     ports: ["127.0.0.1:8000:8000"]
@@ -92,6 +94,8 @@ services:
     command: ["python", "apps/backend/manage.py", "run_scheduler"]
     environment:
       <<: [*studio-env, *s3-env]
+      STUDIO_N8N_WEBHOOKS: ${STUDIO_N8N_WEBHOOKS:-}
+      STUDIO_N8N_DISPATCH_TOKEN: ${STUDIO_N8N_DISPATCH_TOKEN:-}
     volumes:
       - ./apps/backend:/workspace/apps/backend
     depends_on:

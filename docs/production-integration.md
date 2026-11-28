@@ -2,6 +2,8 @@
 
 ## 工作流接入（T03、T08）
 
+HTTP 调用和本地 n8n 样例见[工作流接入](workflow-integration.md)。
+
 使用 `configured_scheduler()` 加载注册表。Worker 通过 `WorkflowRequest` 提供 `name`、`schedule_id`、`task_id`、`task_type`、`definition_version`、`execution_id` 和 `deadline_at`。HTTP 层将 `schedule_id`、`definition_version` 分别映射为 `projectId`、`schemaVersion`。首次调用 `accept_workflow(execution_id)` 返回 `WorkflowAcceptance(status="accepted", payload=...)`，`payload` 是固定的业务输入。
 
 `contracts.production_v1.LEAVES` 按任务类型提供工作流名、输入和成功结果的结构化数据校验器。`validate_leaf_input(task_type, value)` 校验输入，`validate_leaf_success(task_type, inputs, value)` 校验 `{"data": {...}, "outputs": [...]}` 及业务约束。样例覆盖所有叶子类型。[生产 v1 样例](../contracts/production-v1.examples.json)
@@ -28,6 +30,8 @@
 ## 素材与交付登记（T04）
 
 按 `record_outputs(execution, output)` 接入。登记函数收到通过叶子校验的成功包，并返回以输出槽位为键的引用，例如 `{"main": {"assetKey": "production:e1:s1:image", "kind": "image", "versionId": "<uuid>"}}`。每个声明槽位都应有返回值。返回的素材键和类型必须与对应描述一致。空 `outputs` 返回空字典。上传归属及对象校验在进入调度事务前完成，登记函数只写数据库。登记或生产写入抛出异常时，完成事务回滚，排除登记故障后可用同一执行重试回调。
+
+工作流 HTTP 回调将 `media.workflow_outputs.prepare_workflow_outputs` 传给调度器。T04 在该函数内校验上传与对象，然后返回写库用的登记函数。调度器先排除重复或过期执行并运行叶子结果校验，随后调用准备函数，最后在完成事务内再检查执行状态并调用登记函数。
 
 登记函数可从 `execution.task.schedule_id` 获取项目，从 `execution.snapshot["input"]` 取 `episodeNumber` 和 `shotNumber`。持久化行通过项目内集号、分集内镜号查找。工作台使用 `Episode.pk` 和 `Shot.pk` 作为 `episodeId` 和 `shotId`，在项目范围内解析。视频和合成交付中的 `kind` 都可以是 `video`，用 `task_type` 和输出槽位区分。
 

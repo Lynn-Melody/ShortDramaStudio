@@ -3,11 +3,331 @@ info:
   title: Short Drama Studio API
   version: 1.0.0
 paths:
+  /internal/v1/executions/{executionId}/accept:
+    post:
+      operationId: executions_accept_create
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionIdentity'
+        required: true
+      security:
+      - workflowService: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAcceptance'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+  /internal/v1/executions/{executionId}/provider-check:
+    get:
+      operationId: executions_provider_check_retrieve
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: schemaVersion
+        schema:
+          enum:
+          - '1'
+          type: string
+          minLength: 1
+        description: '* `1` - 1'
+        required: true
+      - in: query
+        name: taskId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      security:
+      - workflowVerifier: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCheckSnapshot'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+    post:
+      operationId: executions_provider_check_create
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderCheckConfirmation'
+        required: true
+      security:
+      - workflowVerifier: []
+      responses:
+        '204':
+          description: No response body
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+  /internal/v1/executions/{executionId}/provider-jobs/{stepKey}:
+    put:
+      operationId: executions_provider_jobs_update
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: stepKey
+        schema:
+          type: string
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,99}$
+        required: true
+      tags:
+      - executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderJobRegistration'
+        required: true
+      security:
+      - workflowService: []
+      responses:
+        '204':
+          description: No response body
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+  /internal/v1/executions/{executionId}/result:
+    post:
+      operationId: executions_result_create
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowResult'
+      security:
+      - workflowService: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResultStatus'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+  /internal/v1/executions/{executionId}/status:
+    get:
+      operationId: executions_status_retrieve
+      parameters:
+      - in: path
+        name: executionId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: projectId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: schemaVersion
+        schema:
+          enum:
+          - '1'
+          type: string
+          minLength: 1
+        description: '* `1` - 1'
+        required: true
+      - in: query
+        name: taskId
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - executions
+      security:
+      - workflowService: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowError'
+          description: ''
   /internal/v1/health:
     get:
-      operationId: internal_v1_health_retrieve
+      operationId: health_retrieve
       tags:
-      - internal
+      - health
       responses:
         '200':
           content:
@@ -23,14 +343,33 @@ paths:
           description: ''
 components:
   schemas:
+    ExecutionIdentity:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+      required:
+      - executionId
+      - projectId
+      - schemaVersion
+      - taskId
     Health:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/StatusEnum'
+          $ref: '#/components/schemas/HealthStatusEnum'
       required:
       - status
-    StatusEnum:
+    HealthStatusEnum:
       enum:
       - ok
       - unavailable
@@ -38,3 +377,296 @@ components:
       description: |-
         * `ok` - ok
         * `unavailable` - unavailable
+    KindEnum:
+      enum:
+      - character
+      - scene
+      - prop
+      - image
+      - audio
+      - video
+      - subtitles
+      - timeline
+      type: string
+      description: |-
+        * `character` - character
+        * `scene` - scene
+        * `prop` - prop
+        * `image` - image
+        * `audio` - audio
+        * `video` - video
+        * `subtitles` - subtitles
+        * `timeline` - timeline
+    Output:
+      type: object
+      properties:
+        slot:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        assetKey:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        title:
+          type: string
+          maxLength: 200
+        uploadId:
+          type: string
+          format: uuid
+      required:
+      - assetKey
+      - kind
+      - slot
+      - title
+      - uploadId
+    ProviderCheckConfirmation:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+        workflowStopped:
+          type: boolean
+        requestsSettled:
+          type: boolean
+        jobsInactive:
+          type: boolean
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderJobSnapshot'
+      required:
+      - executionId
+      - jobs
+      - jobsInactive
+      - projectId
+      - requestsSettled
+      - schemaVersion
+      - taskId
+      - workflowStopped
+    ProviderCheckSnapshot:
+      type: object
+      properties:
+        pending:
+          type: boolean
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderJobSnapshot'
+      required:
+      - jobs
+      - pending
+    ProviderJobRegistration:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        jobId:
+          type: string
+          maxLength: 300
+      required:
+      - executionId
+      - jobId
+      - projectId
+      - provider
+      - schemaVersion
+      - taskId
+    ProviderJobSnapshot:
+      type: object
+      properties:
+        provider:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        jobId:
+          type: string
+          maxLength: 300
+        stepKey:
+          type: string
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+      required:
+      - jobId
+      - provider
+      - stepKey
+    SchemaVersionEnum:
+      enum:
+      - '1'
+      type: string
+      description: '* `1` - 1'
+    WorkflowAcceptance:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/WorkflowAcceptanceStatusEnum'
+        input:
+          type: object
+          additionalProperties: {}
+          description: Fixed input. Present only on first acceptance.
+      required:
+      - status
+    WorkflowAcceptanceStatusEnum:
+      enum:
+      - accepted
+      - already_accepted
+      - already_processed
+      - expired
+      - not_ready
+      type: string
+      description: |-
+        * `accepted` - accepted
+        * `already_accepted` - already_accepted
+        * `already_processed` - already_processed
+        * `expired` - expired
+        * `not_ready` - not_ready
+    WorkflowCompleted:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+        data:
+          type: object
+          additionalProperties: {}
+        outputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Output'
+        outcome:
+          $ref: '#/components/schemas/WorkflowCompletedOutcomeEnum'
+      required:
+      - data
+      - executionId
+      - outcome
+      - outputs
+      - projectId
+      - schemaVersion
+      - taskId
+    WorkflowCompletedOutcomeEnum:
+      enum:
+      - completed
+      type: string
+      description: '* `completed` - completed'
+    WorkflowError:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    WorkflowFailed:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        schemaVersion:
+          $ref: '#/components/schemas/SchemaVersionEnum'
+        executionId:
+          type: string
+          format: uuid
+        outcome:
+          $ref: '#/components/schemas/WorkflowFailedOutcomeEnum'
+        errorCode:
+          type: string
+          description: Stable workflow code. provider_jobs_unverified is reserved
+            for the scheduler.
+          maxLength: 100
+          pattern: ^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$
+        message:
+          type: string
+          maxLength: 4000
+      required:
+      - errorCode
+      - executionId
+      - message
+      - outcome
+      - projectId
+      - schemaVersion
+      - taskId
+    WorkflowFailedOutcomeEnum:
+      enum:
+      - failed
+      type: string
+      description: '* `failed` - failed'
+    WorkflowResult:
+      oneOf:
+      - $ref: '#/components/schemas/WorkflowCompleted'
+      - $ref: '#/components/schemas/WorkflowFailed'
+      discriminator:
+        propertyName: outcome
+        mapping:
+          completed: '#/components/schemas/WorkflowCompleted'
+          failed: '#/components/schemas/WorkflowFailed'
+    WorkflowResultStatus:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/WorkflowResultStatusStatusEnum'
+      required:
+      - status
+    WorkflowResultStatusStatusEnum:
+      enum:
+      - applied
+      - already_processed
+      - expired
+      - not_accepted
+      type: string
+      description: |-
+        * `applied` - applied
+        * `already_processed` - already_processed
+        * `expired` - expired
+        * `not_accepted` - not_accepted
+    WorkflowStatus:
+      type: object
+      properties:
+        active:
+          type: boolean
+          description: True while the workflow is accepted, current and before its
+            deadline.
+      required:
+      - active
+  securitySchemes:
+    workflowService:
+      type: http
+      scheme: bearer
+      description: n8n workflow service credential.
+    workflowVerifier:
+      type: http
+      scheme: bearer
+      description: Independent provider reconciliation credential.

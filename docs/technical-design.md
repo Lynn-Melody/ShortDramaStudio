@@ -180,11 +180,11 @@ child_total > 0 时：progress = 所有已绑定子任务的 progress 之和 / c
 
 ### n8n 与 Agent 接口
 
-内部 API 前缀为 `/internal/v1`，生产环境内网加服务身份认证。平台向工作流传 `projectId`、`taskId`、`executionId`、`taskType`、`schemaVersion` 和 `deadlineAt`。工作流通过 `POST /executions/{executionId}/accept` 获得不可变输入快照和带角色的素材版本引用。首次接收返回 `accepted`，已接收或已终止时返回对应结果。
+内部 API 前缀为 `/internal/v1`，生产环境在内网上使用服务身份认证。平台向工作流传 `projectId`、`taskId`、`executionId`、`taskType`、`schemaVersion` 和 `deadlineAt`。工作流通过 `POST /executions/{executionId}/accept` 获得不可变输入快照和带角色的素材版本引用。首次接收返回 `accepted`，已接收或已终止时返回对应结果。身份字段、凭据和响应见[工作流接入](workflow-integration.md)。
 
 - 工作流经 `POST /executions/{executionId}/uploads` 申请专属对象键和短期上传地址。对象键按执行和槽位唯一分配，防止覆盖；所选存储支持时，再在签名中加入 `If-None-Match: *` 条件写入作为附加保护，不作为联调硬性要求。平台在提交前用 HEAD 校验对象存在及大小。
-- 工作流在发起付费或耗时步骤前调用 `GET /executions/{executionId}/status`，若执行已过期、已终止或不再是任务的当前执行，则停止后续步骤，避免超时后继续产生费用。经 `POST /executions/{executionId}/result` 回传 `taskId`、`executionId`、`schemaVersion`、`outcome`。成功结果携带结构化 `data` 以及 `outputs[]`，每项最少包括 `slot`、`assetKey`、`kind`、`title` 和 `uploadId`。`slot` 在单次执行内唯一。失败结果携带稳定的 `errorCode` 和可展示说明。过期或重复结果返回幂等响应，结构错误返回校验错误。 [S3 条件写入](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
-- 外部媒体服务接受任务后，工作流经 `PUT /executions/{executionId}/provider-jobs/{stepKey}` 登记供应商和 job ID，重复登记相同 job ID 幂等。平台查询历史执行时一并显示，供超时后核查。
+- 工作流在发起付费或耗时步骤前调用 `GET /executions/{executionId}/status`，若执行已过期、已终止或不再是任务的当前执行，则停止后续步骤，避免超时后继续产生费用。经 `POST /executions/{executionId}/result` 回传 `projectId`、`taskId`、`executionId`、`schemaVersion` 和 `outcome`。成功结果携带结构化 `data` 以及 `outputs[]`，每项包括 `slot`、`assetKey`、`kind`、`title` 和 `uploadId`。`slot` 在单次执行内唯一。失败结果携带稳定的 `errorCode` 和可展示说明。过期或重复结果返回幂等响应，结构错误返回校验错误。 [S3 条件写入](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
+- 外部媒体服务接受任务后，工作流经 `PUT /executions/{executionId}/provider-jobs/{stepKey}` 登记供应商和 job ID，重复登记相同 job ID 幂等。独立核查身份通过 `GET /executions/{executionId}/provider-check` 读取持久化快照，在确认工作流、在途请求和供应商作业后，通过同路径的 `POST` 提交所核查的快照。
 - Agent 服务提供内部 `POST /agent-runs` 与 `GET /agent-runs/{runId}`。请求给出 `role`、`executionId`、`stepKey` 和输入版本引用。平台为每个角色固定模型、提示词、工具和输出 schema 版本。同一执行内的相同步骤键返回同一个运行记录。工作流以结构化产物交接，上下游依赖已持久化的版本引用。
 - 具体生产任务的数据契约随任务类版本注册。全剧规划输出有序剧集和关键素材清单。剧本结构化输出有序镜头、`sceneId`、预计时长、对白和音效提示。对白输出选定音轨、实际时长及逐句时间戳。分镜图输出选定的图片槽位。视频输入包含本镜首帧、可选尾帧、可选的对白版本和目标时长。合成输出固定的 `video`、`subtitles`、`timeline` 三个槽位。输出结构由对应任务类型和 `schemaVersion` 校验。
 
