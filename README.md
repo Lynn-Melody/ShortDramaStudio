@@ -24,7 +24,7 @@ docker compose ps
 
 首次启动会构建固定版本的 MinIO 社区版，创建平台和 n8n 各自的数据库与角色、运行 Django 迁移并初始化私有开发桶。用 `docker compose exec api python apps/backend/manage.py createsuperuser` 创建 Admin 账号。n8n 账号在编辑器中创建。Agent 和 FFmpeg 服务通过 Compose 内网访问。
 
-当前工作台显示 API 连通状态。Worker、Agent、渲染服务分别提供启动检查或健康接口，供调度、角色和时间轴实现接入。[n8n 工作流目录](workflows/n8n/README.md)说明导入和内部服务地址。
+当前工作台显示 API 连通状态。公开 API 使用 Django 账号会话，接口见 [T05 工作台 API 接入](docs/workbench-api.md)。Worker、Agent、渲染服务分别提供启动检查或健康接口，供调度、角色和时间轴实现接入。[n8n 工作流目录](workflows/n8n/README.md)说明导入和内部服务地址。
 
 `docker compose down` 停止服务并保留数据库、对象和 n8n 数据。数据库角色和密码在数据卷首次初始化时写入，已有卷上的角色密码需通过 PostgreSQL 更新。
 
@@ -64,3 +64,5 @@ uv run --locked python apps/backend/manage.py spectacular --urlconf studio.inter
 Set-Location apps/web
 pnpm types:generate
 ```
+
+[公开 v1 响应样例](contracts/public-v1.examples.json)由工作台 API 测试生成。接口字段变化后，从仓库根目录设置 `STUDIO_WRITE_PUBLIC_EXAMPLES=1` 运行 `uv run --locked pytest apps/backend/tests/test_workbench_api.py`，提交更新后的样例。

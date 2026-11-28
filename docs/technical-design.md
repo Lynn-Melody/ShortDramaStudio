@@ -147,19 +147,22 @@ Worker 首版单进程运行，领取实现支持多实例并发。各任务类�
 
 ### 工作台接口
 
-公共 API 前缀为 `/api/v1`，列表使用稳定游标。应用以项目 ID 做查询范围校验。动作接口返回更新后的摘要，查询接口在同一次响应中返回一致的读取结果。
+公共 API 前缀为 `/api/v1`，列表使用稳定游标。公开接口只接受 Django 会话及其 CSRF 令牌，工作流服务凭据不能访问。应用以项目 ID 做查询范围校验。动作接口返回更新后的摘要，查询接口在同一次响应中返回一致的读取结果。字段、错误码和样例见 [T05 工作台 API 接入](workbench-api.md)。
 
 API 与内部接口分别从后端 Serializer 生成 OpenAPI 3.1。前端从公共契约生成 TypeScript 类型，工作流和 Agent 以内部契约及对应的 `schemaVersion` 联调。CI 检查契约与生成类型同步。 [drf-spectacular 设置](https://drf-spectacular.readthedocs.io/en/latest/settings.html) · [openapi-typescript](https://openapi-ts.dev/introduction)
 
 | 方法与资源 | 契约 |
 | --- | --- |
+| `GET /session`、`POST /session`、`DELETE /session` | 读取登录状态并签发 CSRF 令牌、登录和退出 |
 | `POST /projects`、`GET /projects`、`GET /projects/{projectId}` | 创建接收 `idea`，返回项目和根任务。摘要包含名称、状态、进度、当前集、运行数和超时数 |
+| `GET /projects/{projectId}/episodes`、`GET .../episodes/{episodeId}`、`GET .../episodes/{episodeId}/shots` | 分集状态与剧本，以及分镜范围 |
 | `POST /projects/{projectId}/pause`、`POST /projects/{projectId}/resume` | 幂等切换派发。首次 resume 完成启动 |
 | `GET /projects/{projectId}/task-tree` | `view=running` 返回所有运行节点及去重后的祖先。`view=subtree&rootTaskId=...` 返回指定节点及两层后代 |
 | `GET /projects/{projectId}/tasks`、`GET /projects/{projectId}/tasks/{taskId}` | 首条用于按状态定位，返回祖先路径。详情返回状态、依赖、等待或超时原因、当前和历史执行摘要及产出数 |
 | `POST /projects/{projectId}/tasks/{taskId}/retry` | 失败阻塞（`waiting` 且 `blocked_reason` 非空）或 `timed_out` 的任务可重试，清除阻塞并重置自动重试计数。其他状态返回冲突 |
 | `GET /projects/{projectId}/tasks/{taskId}/outputs` | 返回该任务生成的实际素材版本，按任务范围读取 |
-| `GET /projects/{projectId}/assets` | `scope` 可为 `current`、`shared`、`all` 或 `episode`。可联合 `episodeId`、`kind`、`shotId`、`q` 和游标。交付按集分组成片、字幕和时间轴 |
+| `GET /projects/{projectId}/assets` | `scope` 可为 `current`、`shared`、`all` 或 `episode`。可联合 `episodeId`、`kind`、`shotId`、`q` 和游标 |
+| `GET /projects/{projectId}/deliveries` | 交付按集分组成片、字幕和时间轴的确切版本 |
 | `GET /projects/{projectId}/assets/{assetId}/versions`、`GET /projects/{projectId}/asset-versions/{versionId}/preview` | 读取版本历史，签发指定版本的临时预览地址 |
 
 前端用 React Flow 自定义状态圆点与返回交互，视图位置按项目和下钻路径缓存。任务树轮询更新节点状态和可见路径，选中节点、下钻位置和用户设置的视角由本地界面状态持有。首版对前台可见项目每 2 秒刷新摘要和当前视图，后台标签页暂停轮询。Idea 弹窗草稿留在页面状态，提交成功后选中新项目。默认使用明亮主题，主题选择持久化到本地。 [React Flow 受控视口](https://reactflow.dev/api-reference/react-flow#viewport-props)
