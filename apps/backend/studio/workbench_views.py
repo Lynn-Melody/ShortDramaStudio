@@ -297,4 +297,3 @@ class AssetPreviewView(WorkbenchView):
     def get(self, request, projectId, versionId):
         preview = library.preview(self.project(projectId), versionId)
         return Response(v1.output(v1.AssetPreview, preview), headers=NO_STORE)
-
