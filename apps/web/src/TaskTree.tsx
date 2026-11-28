@@ -97,6 +97,13 @@ export function TaskTree({ project, onShowOutputs }: {
     })
   }, [focusTarget, positions, view, size])
 
+  // Leaving the tree (another project selected) keeps the latest viewport of the level shown.
+  const latest = useRef({ key, view })
+  latest.current = { key, view }
+  useEffect(() => () => {
+    if (latest.current.view) savedViews.set(latest.current.key, latest.current.view)
+  }, [])
+
   // Leaving a level saves its viewport under the level's own key.
   const changeLevel = (next: Level[], focus: string | null) => {
     if (view) savedViews.set(key, view)
@@ -148,6 +155,7 @@ export function TaskTree({ project, onShowOutputs }: {
       setCycle({ ...cycle, [state]: index })
       setSelected(visible[index].id)
       if (view) setView(centreOn(visible[index], view, size.width, size.height))
+      setFocusTarget(visible[index].id)
       return
     }
     const found = await api.tasks(project.id, { state, limit: 1 })

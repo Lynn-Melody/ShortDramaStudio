@@ -47,9 +47,11 @@ export function App() {
           {session.data?.authenticated && (
             <button type="button" onClick={async () => {
               await api.logout()
-              const anonymous = await api.session()
-              rememberCsrf(anonymous)
-              afterLogout(client, anonymous)
+              // The old token is rotated by sign-out; the next unsafe request reads a fresh one.
+              rememberCsrf({ authenticated: false, username: null, csrfToken: '' })
+              const anonymous = await api.session().catch(() => null)
+              if (anonymous) rememberCsrf(anonymous)
+              await afterLogout(client, anonymous)
             }}>退出</button>
           )}
         </div>

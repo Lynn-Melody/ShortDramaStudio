@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { ProjectDetail, ProjectSummary, TaskDetail } from './api'
+import type { ProjectDetail, ProjectSummary, Session, TaskDetail } from './api'
 
 export const keys = {
   session: ['session'] as const,
@@ -32,8 +32,12 @@ export function afterSwitch(client: QueryClient, summary: ProjectSummary) {
   ), [keys.project(summary.id), keys.projects, keys.tree(summary.id)])
 }
 
-/** After sign-out keep only the fresh anonymous session; workbench data belongs to the old account. */
-export function afterLogout(client: QueryClient, session: unknown) {
+/**
+ * After sign-out keep only an anonymous session; workbench data belongs to the old account.
+ * An older in-flight session read is cancelled first so it cannot restore the signed-in state.
+ */
+export async function afterLogout(client: QueryClient, session: Session | null) {
+  await client.cancelQueries({ queryKey: keys.session })
   client.removeQueries({ predicate: query => query.queryKey[0] !== keys.session[0] })
-  client.setQueryData(keys.session, session)
+  client.setQueryData<Session>(keys.session, session ?? { authenticated: false, username: null, csrfToken: '' })
 }

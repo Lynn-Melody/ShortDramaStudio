@@ -110,16 +110,19 @@ function Library({ project, filters, setFilters, onPreview, listRef, onScroll }:
   }, [resolvedEpisodeId, filters, setFilters])
   const shotId = filters.shotId !== null && shots.data?.results.some(shot => shot.id === filters.shotId)
     ? filters.shotId : null
+  // Once the client knows the current episode, request that episode explicitly: the shot filter and the
+  // cursors then belong to the same episode even if production moves on between polls.
+  const pinned = filters.scope === 'current' && resolvedEpisodeId !== undefined
+    ? { scope: 'episode', episodeId: resolvedEpisodeId } : scope
   const query = {
-    ...scope,
+    ...pinned,
     kind: tab.kind === 'documents' ? undefined : tab.kind ?? undefined,
     shotId: shotId ?? undefined,
     q: filters.q.trim() || undefined,
     limit: 60,
   }
   const assets = useInfiniteQuery({
-    // The resolved episode keys current-scope pages, so a new current episode starts a new listing.
-    queryKey: ['assets', project.id, query, resolvedEpisodeId],
+    queryKey: ['assets', project.id, query],
     queryFn: ({ pageParam }) => api.assets(project.id, { ...query, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
@@ -362,15 +365,18 @@ function PreviewDialog({ projectId, version, title, onClose }: {
     queryKey: ['preview', projectId, version.id],
     queryFn: () => api.preview(projectId, version.id),
     gcTime: 0,
-    // Re-sign shortly before the signature's own expiry; hidden tabs re-sign when they return.
+    // Re-sign shortly before the signature's own expiry. Until then a fresh signature is kept, so focus
+    // changes do not swap the URL under a playing video.
+    staleTime: query => refreshDelay(query.state.data?.expiresAt) || 0,
     refetchInterval: query => refreshDelay(query.state.data?.expiresAt),
-    refetchOnWindowFocus: 'always',
   })
   const [now, setNow] = useState(() => Date.now())
+  const expiresAt = signed.data?.expiresAt
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 5_000)
-    return () => clearInterval(timer)
-  }, [])
+    if (!expiresAt) return
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(expiresAt) - Date.now()) + 50)
+    return () => clearTimeout(timer)
+  }, [expiresAt])
   useEffect(() => {
     dialog.current?.showModal()
   }, [])

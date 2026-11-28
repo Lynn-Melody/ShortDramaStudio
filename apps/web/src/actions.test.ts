@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { expect, test } from 'vitest'
 import { afterLogout, afterRetry, afterSwitch, keys } from './actions'
-import type { ProjectDetail, TaskDetail } from './api'
+import type { ProjectDetail, Session, TaskDetail } from './api'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -34,13 +34,23 @@ test('pause or resume keeps its summary over an older project poll', async () =>
   expect(client.getQueryData<ProjectDetail>(key)?.status).toBe('paused')
 })
 
-test('sign-out drops workbench data and installs the anonymous session', () => {
+test('sign-out drops workbench data and installs the anonymous session', async () => {
   const client = new QueryClient()
   client.setQueryData(keys.projects, { pages: [] })
   client.setQueryData(keys.session, { authenticated: true })
-  afterLogout(client, { authenticated: false, username: null, csrfToken: 'new' })
+  await afterLogout(client, { authenticated: false, username: null, csrfToken: 'new' })
   expect(client.getQueryData(keys.projects)).toBeUndefined()
   expect(client.getQueryData(keys.session)).toEqual({ authenticated: false, username: null, csrfToken: 'new' })
+})
+
+test('sign-out wins over an older session read and works without a fresh session', async () => {
+  const client = new QueryClient()
+  const stale = deferred<Session>()
+  const poll = client.fetchQuery({ queryKey: keys.session, queryFn: () => stale.promise }).catch(() => undefined)
+  const done = afterLogout(client, null)
+  stale.resolve({ authenticated: true, username: 'old', csrfToken: 'old' })
+  await Promise.allSettled([poll, done])
+  expect(client.getQueryData<Session>(keys.session)).toEqual({ authenticated: false, username: null, csrfToken: '' })
 })
 
 test('previews re-sign shortly before their signature expires', async () => {

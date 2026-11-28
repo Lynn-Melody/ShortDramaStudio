@@ -96,7 +96,7 @@ export function detailSide(node: { y: number } | undefined, view: Viewport, heig
 export const DETAIL_MARGIN = 12
 
 export function detailMaxHeight(height: number) {
-  return Math.max(96, height / 2 - DETAIL_MARGIN * 2)
+  return Math.max(0, height / 2 - DETAIL_MARGIN * 2)
 }
 
 export function viewKey(projectId: string, path: string[]) {

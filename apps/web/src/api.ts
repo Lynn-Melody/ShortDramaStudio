@@ -43,6 +43,11 @@ export function rememberCsrf(session: Session) {
   csrfToken = session.csrfToken
 }
 
+/** Make sure an unsafe request has a CSRF token, reading the session when none is known. */
+export async function ensureCsrf() {
+  if (!csrfToken) rememberCsrf(await request<Session>('GET', '/api/v1/session'))
+}
+
 function describe(status: number, body: unknown): ApiError {
   if (body && typeof body === 'object') {
     const record = body as Record<string, unknown>
@@ -90,8 +95,10 @@ const project = (id: string) => `/api/v1/projects/${encodeURIComponent(id)}`
 
 export const api = {
   session: () => request<Session>('GET', '/api/v1/session'),
-  login: (username: string, password: string) =>
-    request<Session>('POST', '/api/v1/session', { username, password }),
+  login: async (username: string, password: string) => {
+    await ensureCsrf()
+    return request<Session>('POST', '/api/v1/session', { username, password })
+  },
   logout: () => request<void>('DELETE', '/api/v1/session'),
   projects: (cursor?: string) => request<ProjectList>('GET', withQuery('/api/v1/projects', { cursor })),
   createProject: (idea: string, projectId: string) =>

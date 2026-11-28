@@ -127,6 +127,7 @@ test('pause lets running work finish, drill-down returns, outputs and theme keep
   await completeWhenRunning(project.id, 'scene_asset')
   const library = page.getByRole('region', { name: '素材库' })
   await library.getByLabel('范围').selectOption('all')
+  await library.getByLabel('搜索素材名称').fill('e')
   await expect(library.getByRole('article').first()).toBeVisible()
   const list = library.locator('.library-body .asset-list')
   await list.evaluate(element => { element.style.maxHeight = '160px' })
@@ -142,6 +143,7 @@ test('pause lets running work finish, drill-down returns, outputs and theme keep
   await expect(library.locator('.output-heading + .asset-list').getByRole('article')).toHaveCount(2)
   await library.getByRole('button', { name: '← 返回素材库' }).click()
   await expect(library.getByLabel('范围')).toHaveValue('all')
+  await expect(library.getByLabel('搜索素材名称')).toHaveValue('e')
   expect(await list.evaluate(element => element.scrollTop)).toBe(scrolled)
   await library.getByLabel('搜索素材名称').fill('station')
 
