@@ -77,6 +77,8 @@ services:
       <<: [*studio-env, *s3-env]
       STUDIO_WORKFLOW_SERVICE_TOKEN: ${STUDIO_WORKFLOW_SERVICE_TOKEN:-}
       STUDIO_WORKFLOW_VERIFIER_TOKEN: ${STUDIO_WORKFLOW_VERIFIER_TOKEN:-}
+      # Signed preview reads are fetched by the browser through the loopback MinIO port.
+      STUDIO_S3_BROWSER_ENDPOINT: ${STUDIO_S3_BROWSER_ENDPOINT:-http://127.0.0.1:9000}
     volumes:
       - ./apps/backend:/workspace/apps/backend
     ports: ["127.0.0.1:8000:8000"]

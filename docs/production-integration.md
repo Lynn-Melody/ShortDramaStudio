@@ -59,4 +59,4 @@ HTTP 调用和本地 n8n 样例见[工作流接入](workflow-integration.md)。
 | `shot_image`、`shot_dialogue`、`shot_video`、`shot_sound` | 分别写入 `Shot.image`、`Shot.dialogue`、`Shot.video`、`Shot.sound` |
 | `episode_edit` | 将三类已采用引用写入 `Episode.deliveries` |
 
-项目规划返回前，界面可用 Idea 的首行显示临时名称。任务状态和进度从根任务读取，任务树及执行历史按 `schedule_id` 查询。参见 [T01 调度接入说明](scheduler-integration.md)。
+项目规划返回前，界面可用 Idea 的首行显示临时名称。任务状态和进度从根任务读取，任务树及执行历史按 `schedule_id` 查询。参见 [T01 调度接入说明](scheduler-integration.md)。公开接口见 [T05 工作台 API 接入](workbench-api.md)。

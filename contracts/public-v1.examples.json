@@ -1,0 +1,763 @@
+{
+  "projectDetail": {
+    "id": "352498a9-1ff2-400c-8f69-ca730f0acf78",
+    "name": "Night Service",
+    "title": "Night Service",
+    "status": "paused",
+    "startedAt": "2026-11-28T11:04:54.982492Z",
+    "createdAt": "2026-11-28T11:04:54.884598Z",
+    "progress": 0.3333333333333333,
+    "rootTaskId": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+    "currentEpisode": null,
+    "runningCount": 0,
+    "timedOutCount": 0,
+    "blockedCount": 0,
+    "idea": "A conductor follows the last train home.",
+    "plan": {
+      "world": "A night train takes a secret route.",
+      "visualGuide": "Cool fluorescent light",
+      "characters": [
+        {
+          "name": "Mei",
+          "profile": "Conductor"
+        }
+      ]
+    },
+    "episodeCount": 2
+  },
+  "taskTree": {
+    "view": "running",
+    "rootTaskId": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+    "path": [],
+    "nodes": [
+      {
+        "id": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+        "name": "短剧制作",
+        "taskType": "short_drama",
+        "state": "waiting",
+        "parentId": null,
+        "slotKey": null,
+        "blockedReason": null,
+        "canRetry": false,
+        "providerCheckPending": false,
+        "progress": 0.3333333333333333,
+        "childTotal": 3,
+        "childCount": 2,
+        "episodeNumber": null,
+        "shotNumber": null
+      },
+      {
+        "id": "5b75c1eb-e0ce-44f1-9769-08e613248232",
+        "name": "全局关键素材",
+        "taskType": "global_assets",
+        "state": "waiting",
+        "parentId": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+        "slotKey": "global_assets",
+        "blockedReason": null,
+        "canRetry": false,
+        "providerCheckPending": false,
+        "progress": 0.0,
+        "childTotal": 3,
+        "childCount": 3,
+        "episodeNumber": null,
+        "shotNumber": null
+      },
+      {
+        "id": "c385625f-ec5f-4967-9bb0-88f606e8cfe3",
+        "name": "场景素材 · Station",
+        "taskType": "scene_asset",
+        "state": "running",
+        "parentId": "5b75c1eb-e0ce-44f1-9769-08e613248232",
+        "slotKey": "station",
+        "blockedReason": null,
+        "canRetry": false,
+        "providerCheckPending": false,
+        "progress": 0.0,
+        "childTotal": 0,
+        "childCount": 0,
+        "episodeNumber": null,
+        "shotNumber": null
+      },
+      {
+        "id": "248f4f6a-e19b-42f7-8f7a-6a4401142682",
+        "name": "场景素材 · Street",
+        "taskType": "scene_asset",
+        "state": "running",
+        "parentId": "5b75c1eb-e0ce-44f1-9769-08e613248232",
+        "slotKey": "street",
+        "blockedReason": null,
+        "canRetry": false,
+        "providerCheckPending": false,
+        "progress": 0.0,
+        "childTotal": 0,
+        "childCount": 0,
+        "episodeNumber": null,
+        "shotNumber": null
+      },
+      {
+        "id": "bcc5f5ee-69c6-4fe3-8af3-e8741cb42799",
+        "name": "人物素材 · Mei",
+        "taskType": "character_asset",
+        "state": "running",
+        "parentId": "5b75c1eb-e0ce-44f1-9769-08e613248232",
+        "slotKey": "mei",
+        "blockedReason": null,
+        "canRetry": false,
+        "providerCheckPending": false,
+        "progress": 0.0,
+        "childTotal": 0,
+        "childCount": 0,
+        "episodeNumber": null,
+        "shotNumber": null
+      }
+    ]
+  },
+  "taskDetail": {
+    "id": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+    "name": "短剧制作",
+    "taskType": "short_drama",
+    "state": "waiting",
+    "parentId": null,
+    "slotKey": null,
+    "blockedReason": null,
+    "canRetry": false,
+    "providerCheckPending": false,
+    "progress": 0.0,
+    "childTotal": 3,
+    "childCount": 1,
+    "episodeNumber": null,
+    "shotNumber": null,
+    "path": [],
+    "attemptCount": 0,
+    "retryAt": null,
+    "completionReason": "",
+    "dependencies": [],
+    "waits": [
+      {
+        "slotKey": "plan",
+        "task": {
+          "id": "bf03b4b8-7356-4447-9951-d3a23339f364",
+          "name": "全剧规划",
+          "taskType": "series_plan",
+          "state": "running"
+        },
+        "satisfied": false
+      }
+    ],
+    "currentExecution": {
+      "id": "1a44dd45-7934-45d8-8539-f5fb0d2e34c8",
+      "state": "succeeded",
+      "current": true,
+      "startedAt": "2026-11-28T11:04:55.040109Z",
+      "deadlineAt": "2026-11-28T11:09:55.040109Z",
+      "endedAt": "2026-11-28T11:04:55.072129Z",
+      "workflowAcceptedAt": null,
+      "outcome": "wait_for_children",
+      "errorCode": null,
+      "message": null,
+      "retryable": null,
+      "providerJobs": [],
+      "providerJobsCheckedAt": null
+    },
+    "executions": [
+      {
+        "id": "1a44dd45-7934-45d8-8539-f5fb0d2e34c8",
+        "state": "succeeded",
+        "current": true,
+        "startedAt": "2026-11-28T11:04:55.040109Z",
+        "deadlineAt": "2026-11-28T11:09:55.040109Z",
+        "endedAt": "2026-11-28T11:04:55.072129Z",
+        "workflowAcceptedAt": null,
+        "outcome": "wait_for_children",
+        "errorCode": null,
+        "message": null,
+        "retryable": null,
+        "providerJobs": [],
+        "providerJobsCheckedAt": null
+      }
+    ],
+    "executionCount": 1,
+    "outputCount": 0
+  },
+  "projectList": {
+    "results": [
+      {
+        "id": "352498a9-1ff2-400c-8f69-ca730f0acf78",
+        "name": "Night Service",
+        "title": "Night Service",
+        "status": "completed",
+        "startedAt": "2026-11-28T11:04:54.982492Z",
+        "createdAt": "2026-11-28T11:04:54.884598Z",
+        "progress": 1.0,
+        "rootTaskId": "d4f0c9c4-70c7-487d-aa95-2ef71f919d1f",
+        "currentEpisode": null,
+        "runningCount": 0,
+        "timedOutCount": 0,
+        "blockedCount": 0
+      }
+    ],
+    "nextCursor": null
+  },
+  "episodeList": {
+    "results": [
+      {
+        "id": 1,
+        "number": 1,
+        "title": "Episode 1",
+        "outline": "Mei boards the train",
+        "taskId": "14cd2992-5fe5-45a2-8f8d-869f156f06d1",
+        "state": "completed",
+        "progress": 1.0,
+        "shotCount": 2,
+        "delivered": true,
+        "current": false
+      },
+      {
+        "id": 2,
+        "number": 2,
+        "title": "Episode 2",
+        "outline": "Mei boards the train",
+        "taskId": "3c2917b4-4d13-4a95-a2b7-9f6e4fe7449b",
+        "state": "completed",
+        "progress": 1.0,
+        "shotCount": 2,
+        "delivered": true,
+        "current": false
+      }
+    ]
+  },
+  "shotList": {
+    "episode": {
+      "id": 1,
+      "number": 1,
+      "title": "Episode 1"
+    },
+    "results": [
+      {
+        "id": 1,
+        "number": 1,
+        "sceneId": "station",
+        "description": "Mei climbs the stairs",
+        "estimatedDurationMs": 900,
+        "assetKeys": [
+          "pass",
+          "mei"
+        ],
+        "dialogue": [
+          {
+            "lineId": "line-1",
+            "speaker": "Mei",
+            "delivery": "lip_sync",
+            "text": "Wait!"
+          },
+          {
+            "lineId": "line-2",
+            "speaker": "Mei",
+            "delivery": "voiceover",
+            "text": "Nobody heard."
+          }
+        ],
+        "sound": [
+          {
+            "cueId": "cue-1",
+            "description": "Train brakes"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "number": 2,
+        "sceneId": "station",
+        "description": "Mei climbs the stairs",
+        "estimatedDurationMs": 900,
+        "assetKeys": [
+          "pass",
+          "mei"
+        ],
+        "dialogue": [],
+        "sound": [
+          {
+            "cueId": "cue-1",
+            "description": "Train brakes"
+          }
+        ]
+      }
+    ]
+  },
+  "assetList": {
+    "scope": "episode",
+    "episode": {
+      "id": 1,
+      "number": 1,
+      "title": "Episode 1"
+    },
+    "results": [
+      {
+        "id": "7673adc1-3fc6-449d-b04e-0b3b4e124ef3",
+        "assetKey": "pass",
+        "kind": "prop",
+        "title": "pass",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": null,
+        "delivery": false,
+        "versionCount": 2,
+        "latestVersion": {
+          "id": "e0af9f9a-4482-4f82-b865-1e4ac76f55ef",
+          "assetId": "7673adc1-3fc6-449d-b04e-0b3b4e124ef3",
+          "title": "pass",
+          "createdAt": "2026-11-28T11:04:58.229836Z",
+          "contentType": "image/png",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "chosen",
+          "taskId": "142bed7f-6677-48ba-be40-263394020eb2",
+          "taskType": "prop_asset",
+          "executionId": "d4b227be-415e-46b2-b3ef-67d70257747c"
+        },
+        "adoptedVersionId": "e0af9f9a-4482-4f82-b865-1e4ac76f55ef"
+      },
+      {
+        "id": "7809eedc-7b90-4d30-9694-99be191e4e6d",
+        "assetKey": "production:e1:s1:dialogue:1",
+        "kind": "audio",
+        "title": "production:e1:s1:dialogue:1",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 1,
+          "number": 1
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "ddaf26b6-5a17-4a87-a905-7cc80c49c4ab",
+          "assetId": "7809eedc-7b90-4d30-9694-99be191e4e6d",
+          "title": "production:e1:s1:dialogue:1",
+          "createdAt": "2026-11-28T11:05:00.343326Z",
+          "contentType": "audio/mpeg",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "line-1",
+          "taskId": "c1c6486c-fa26-4cbe-adcd-72c112fe497f",
+          "taskType": "shot_dialogue",
+          "executionId": "857b57ea-035b-4ae7-9060-bbbcfaabe1fa"
+        },
+        "adoptedVersionId": "ddaf26b6-5a17-4a87-a905-7cc80c49c4ab"
+      },
+      {
+        "id": "6032399f-a2e2-4ae5-b8fc-d3fae11e0904",
+        "assetKey": "production:e1:s1:dialogue:2",
+        "kind": "audio",
+        "title": "production:e1:s1:dialogue:2",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 1,
+          "number": 1
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "7c016114-22ae-4c37-837f-beac6ef470cf",
+          "assetId": "6032399f-a2e2-4ae5-b8fc-d3fae11e0904",
+          "title": "production:e1:s1:dialogue:2",
+          "createdAt": "2026-11-28T11:05:00.347876Z",
+          "contentType": "audio/mpeg",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "line-2",
+          "taskId": "c1c6486c-fa26-4cbe-adcd-72c112fe497f",
+          "taskType": "shot_dialogue",
+          "executionId": "857b57ea-035b-4ae7-9060-bbbcfaabe1fa"
+        },
+        "adoptedVersionId": "7c016114-22ae-4c37-837f-beac6ef470cf"
+      },
+      {
+        "id": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "assetKey": "production:e1:s1:image",
+        "kind": "image",
+        "title": "production:e1:s1:image",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 1,
+          "number": 1
+        },
+        "delivery": false,
+        "versionCount": 2,
+        "latestVersion": {
+          "id": "07857836-ef41-4e23-8f16-dab15aa974fd",
+          "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+          "title": "production:e1:s1:image",
+          "createdAt": "2026-11-28T11:04:59.028377Z",
+          "contentType": "image/png",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "chosen",
+          "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+          "taskType": "shot_image",
+          "executionId": "dec4258c-f356-451f-bf76-adc18862661a"
+        },
+        "adoptedVersionId": "07857836-ef41-4e23-8f16-dab15aa974fd"
+      },
+      {
+        "id": "bb3436e8-f44e-4c22-83a0-50e5a86297fb",
+        "assetKey": "production:e1:s1:sound:1",
+        "kind": "audio",
+        "title": "production:e1:s1:sound:1",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 1,
+          "number": 1
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "7fe24a69-931d-4477-8906-3e7c98b0eab9",
+          "assetId": "bb3436e8-f44e-4c22-83a0-50e5a86297fb",
+          "title": "production:e1:s1:sound:1",
+          "createdAt": "2026-11-28T11:05:01.058098Z",
+          "contentType": "audio/mpeg",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "cue-1",
+          "taskId": "f7c0f13e-aeab-4065-b30c-b87e1e973af2",
+          "taskType": "shot_sound",
+          "executionId": "d187d107-6123-4f62-bed1-00606937019f"
+        },
+        "adoptedVersionId": "7fe24a69-931d-4477-8906-3e7c98b0eab9"
+      },
+      {
+        "id": "f05c3ed5-c3d4-429a-b939-47c0cea31933",
+        "assetKey": "production:e1:s1:video",
+        "kind": "video",
+        "title": "production:e1:s1:video",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 1,
+          "number": 1
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "05a5aa75-a415-4e31-bcec-168e6011a7b0",
+          "assetId": "f05c3ed5-c3d4-429a-b939-47c0cea31933",
+          "title": "production:e1:s1:video",
+          "createdAt": "2026-11-28T11:05:01.011940Z",
+          "contentType": "video/mp4",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "main",
+          "taskId": "331e5eaf-b9bd-4a37-80bb-3ac511717e4c",
+          "taskType": "shot_video",
+          "executionId": "34284c40-3cc6-4391-9e7c-485f1fbb7ebf"
+        },
+        "adoptedVersionId": "05a5aa75-a415-4e31-bcec-168e6011a7b0"
+      },
+      {
+        "id": "ca9b9d53-25f0-44c0-84e9-8fc0c9a5fdf4",
+        "assetKey": "production:e1:s2:image",
+        "kind": "image",
+        "title": "production:e1:s2:image",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 2,
+          "number": 2
+        },
+        "delivery": false,
+        "versionCount": 2,
+        "latestVersion": {
+          "id": "0425bca9-58ce-4d72-b4ba-610729c86866",
+          "assetId": "ca9b9d53-25f0-44c0-84e9-8fc0c9a5fdf4",
+          "title": "production:e1:s2:image",
+          "createdAt": "2026-11-28T11:04:59.069363Z",
+          "contentType": "image/png",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "chosen",
+          "taskId": "bf7d3d9f-41c5-4ca1-bed3-33e8b2dba8c7",
+          "taskType": "shot_image",
+          "executionId": "17f19740-4f9d-4dab-a4b2-ea3045f9f9c5"
+        },
+        "adoptedVersionId": "0425bca9-58ce-4d72-b4ba-610729c86866"
+      },
+      {
+        "id": "8bb457e0-9f6b-48fa-a776-56032364d8b9",
+        "assetKey": "production:e1:s2:sound:1",
+        "kind": "audio",
+        "title": "production:e1:s2:sound:1",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 2,
+          "number": 2
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "b706c0e5-89fb-4080-9759-ad9f0f071085",
+          "assetId": "8bb457e0-9f6b-48fa-a776-56032364d8b9",
+          "title": "production:e1:s2:sound:1",
+          "createdAt": "2026-11-28T11:05:00.432166Z",
+          "contentType": "audio/mpeg",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "cue-1",
+          "taskId": "6d52f662-8ae7-4a0e-8c96-fd7d1cdc9567",
+          "taskType": "shot_sound",
+          "executionId": "b1b160f2-39b4-46a0-9785-23169dc2a31a"
+        },
+        "adoptedVersionId": "b706c0e5-89fb-4080-9759-ad9f0f071085"
+      },
+      {
+        "id": "4d688991-b511-45ca-a7c8-fad54d030a68",
+        "assetKey": "production:e1:s2:video",
+        "kind": "video",
+        "title": "production:e1:s2:video",
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "shot": {
+          "id": 2,
+          "number": 2
+        },
+        "delivery": false,
+        "versionCount": 1,
+        "latestVersion": {
+          "id": "c787b366-2bf7-42fa-952f-1aebcccff7d5",
+          "assetId": "4d688991-b511-45ca-a7c8-fad54d030a68",
+          "title": "production:e1:s2:video",
+          "createdAt": "2026-11-28T11:05:00.391850Z",
+          "contentType": "video/mp4",
+          "sizeBytes": 1024,
+          "adopted": true,
+          "slot": "main",
+          "taskId": "410fe635-0604-4b66-85bc-fa72e0d1e2b0",
+          "taskType": "shot_video",
+          "executionId": "00753870-c38b-4174-91f7-1f9f51d8f047"
+        },
+        "adoptedVersionId": "c787b366-2bf7-42fa-952f-1aebcccff7d5"
+      }
+    ],
+    "nextCursor": null
+  },
+  "assetVersions": {
+    "asset": {
+      "id": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+      "assetKey": "production:e1:s1:image",
+      "kind": "image",
+      "title": "production:e1:s1:image",
+      "episode": {
+        "id": 1,
+        "number": 1,
+        "title": "Episode 1"
+      },
+      "shot": {
+        "id": 1,
+        "number": 1
+      },
+      "delivery": false,
+      "versionCount": 2,
+      "latestVersion": {
+        "id": "07857836-ef41-4e23-8f16-dab15aa974fd",
+        "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "title": "production:e1:s1:image",
+        "createdAt": "2026-11-28T11:04:59.028377Z",
+        "contentType": "image/png",
+        "sizeBytes": 1024,
+        "adopted": true,
+        "slot": "chosen",
+        "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+        "taskType": "shot_image",
+        "executionId": "dec4258c-f356-451f-bf76-adc18862661a"
+      },
+      "adoptedVersionId": "07857836-ef41-4e23-8f16-dab15aa974fd"
+    },
+    "versions": [
+      {
+        "id": "07857836-ef41-4e23-8f16-dab15aa974fd",
+        "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "title": "production:e1:s1:image",
+        "createdAt": "2026-11-28T11:04:59.028377Z",
+        "contentType": "image/png",
+        "sizeBytes": 1024,
+        "adopted": true,
+        "slot": "chosen",
+        "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+        "taskType": "shot_image",
+        "executionId": "dec4258c-f356-451f-bf76-adc18862661a"
+      },
+      {
+        "id": "84f6ae7c-9f2c-4faf-89bb-5aa64899d818",
+        "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "title": "production:e1:s1:image",
+        "createdAt": "2026-11-28T11:04:59.026367Z",
+        "contentType": "image/png",
+        "sizeBytes": 1024,
+        "adopted": false,
+        "slot": "candidate",
+        "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+        "taskType": "shot_image",
+        "executionId": "dec4258c-f356-451f-bf76-adc18862661a"
+      }
+    ]
+  },
+  "taskOutputs": {
+    "task": {
+      "id": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+      "name": "镜头 1 分镜图",
+      "taskType": "shot_image",
+      "state": "completed"
+    },
+    "versions": [
+      {
+        "id": "84f6ae7c-9f2c-4faf-89bb-5aa64899d818",
+        "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "title": "production:e1:s1:image",
+        "createdAt": "2026-11-28T11:04:59.026367Z",
+        "contentType": "image/png",
+        "sizeBytes": 1024,
+        "adopted": false,
+        "slot": "candidate",
+        "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+        "taskType": "shot_image",
+        "executionId": "dec4258c-f356-451f-bf76-adc18862661a",
+        "asset": {
+          "id": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+          "assetKey": "production:e1:s1:image",
+          "kind": "image",
+          "title": "production:e1:s1:image",
+          "episode": {
+            "id": 1,
+            "number": 1,
+            "title": "Episode 1"
+          },
+          "shot": {
+            "id": 1,
+            "number": 1
+          },
+          "delivery": false
+        }
+      },
+      {
+        "id": "07857836-ef41-4e23-8f16-dab15aa974fd",
+        "assetId": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+        "title": "production:e1:s1:image",
+        "createdAt": "2026-11-28T11:04:59.028377Z",
+        "contentType": "image/png",
+        "sizeBytes": 1024,
+        "adopted": true,
+        "slot": "chosen",
+        "taskId": "a75ea580-9695-4359-be78-a7bf953dbb9e",
+        "taskType": "shot_image",
+        "executionId": "dec4258c-f356-451f-bf76-adc18862661a",
+        "asset": {
+          "id": "38b8643c-e3f4-4d5f-afcd-b86ea942f89f",
+          "assetKey": "production:e1:s1:image",
+          "kind": "image",
+          "title": "production:e1:s1:image",
+          "episode": {
+            "id": 1,
+            "number": 1,
+            "title": "Episode 1"
+          },
+          "shot": {
+            "id": 1,
+            "number": 1
+          },
+          "delivery": false
+        }
+      }
+    ],
+    "documents": []
+  },
+  "deliveries": {
+    "results": [
+      {
+        "episode": {
+          "id": 1,
+          "number": 1,
+          "title": "Episode 1"
+        },
+        "deliveries": [
+          {
+            "id": "27bf2645-d02c-40cc-8a60-a5b3b2e23709",
+            "createdAt": "2026-11-28T11:05:01.920288Z",
+            "current": true,
+            "taskId": "6d232940-fd03-44f7-867f-e708d3f72b58",
+            "executionId": "6d32cf4c-0f57-476f-8dc6-6ddee852e92b",
+            "video": {
+              "id": "3087acf3-36ff-424f-a1d2-f76b76001763",
+              "assetId": "c48bf077-d857-409b-86ff-bce8207b3f70",
+              "title": "production:e1:video",
+              "createdAt": "2026-11-28T11:05:01.911761Z",
+              "contentType": "video/mp4",
+              "sizeBytes": 1024,
+              "adopted": true,
+              "slot": "video",
+              "taskId": "6d232940-fd03-44f7-867f-e708d3f72b58",
+              "taskType": "episode_edit",
+              "executionId": "6d32cf4c-0f57-476f-8dc6-6ddee852e92b"
+            },
+            "subtitles": {
+              "id": "30e4e7c7-e2d3-4d5d-b1d7-4f4224da1aa2",
+              "assetId": "bee7ba3a-0999-4614-8f66-294f79578678",
+              "title": "production:e1:subtitles",
+              "createdAt": "2026-11-28T11:05:01.915734Z",
+              "contentType": "text/vtt",
+              "sizeBytes": 1024,
+              "adopted": true,
+              "slot": "subtitles",
+              "taskId": "6d232940-fd03-44f7-867f-e708d3f72b58",
+              "taskType": "episode_edit",
+              "executionId": "6d32cf4c-0f57-476f-8dc6-6ddee852e92b"
+            },
+            "timeline": {
+              "id": "9075af9c-7363-4339-a1a9-7d519b1a54d3",
+              "assetId": "7ca19c35-da36-460c-b99b-1c58296e0d9f",
+              "title": "production:e1:timeline",
+              "createdAt": "2026-11-28T11:05:01.919424Z",
+              "contentType": "application/json",
+              "sizeBytes": 1024,
+              "adopted": true,
+              "slot": "timeline",
+              "taskId": "6d232940-fd03-44f7-867f-e708d3f72b58",
+              "taskType": "episode_edit",
+              "executionId": "6d32cf4c-0f57-476f-8dc6-6ddee852e92b"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

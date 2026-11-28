@@ -36,7 +36,26 @@ def test_readiness_and_worker_use_postgresql_18(client):
 
 
 @pytest.mark.parametrize(("kind", "paths"), [
-    ("public", {"/api/v1/health"}),
+    ("public", {
+        "/api/v1/health",
+        "/api/v1/session",
+        "/api/v1/projects",
+        "/api/v1/projects/{projectId}",
+        "/api/v1/projects/{projectId}/pause",
+        "/api/v1/projects/{projectId}/resume",
+        "/api/v1/projects/{projectId}/episodes",
+        "/api/v1/projects/{projectId}/episodes/{episodeId}",
+        "/api/v1/projects/{projectId}/episodes/{episodeId}/shots",
+        "/api/v1/projects/{projectId}/task-tree",
+        "/api/v1/projects/{projectId}/tasks",
+        "/api/v1/projects/{projectId}/tasks/{taskId}",
+        "/api/v1/projects/{projectId}/tasks/{taskId}/retry",
+        "/api/v1/projects/{projectId}/tasks/{taskId}/outputs",
+        "/api/v1/projects/{projectId}/assets",
+        "/api/v1/projects/{projectId}/assets/{assetId}/versions",
+        "/api/v1/projects/{projectId}/asset-versions/{versionId}/preview",
+        "/api/v1/projects/{projectId}/deliveries",
+    }),
     ("internal", {
         "/internal/v1/health",
         "/internal/v1/executions/{executionId}/accept",

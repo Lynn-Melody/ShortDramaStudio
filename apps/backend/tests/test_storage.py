@@ -300,3 +300,38 @@ def test_delivery_registration_rolls_back_with_workflow_completion(live_media, m
         assert reference == {"assetKey": version.asset.asset_key, "kind": slot, "versionId": str(version.pk)}
         assert version.upload.slot == slot and version.asset.episode == delivery.episode
     assert AssetVersion.objects.count() == 3
+
+
+def test_workbench_preview_signs_short_reads_of_registered_versions(live_media, settings, django_user_model):
+    api, http, scheduler = live_media
+    execution = create_leaf(scheduler, leaves.EpisodeEdit)
+    accept_client(api, execution)
+    content_types = {"video": "video/mp4", "subtitles": "text/vtt", "timeline": "application/json"}
+    outputs = []
+    for descriptor in PRODUCTION_CASES["episode_edit"]["result"]["outputs"]:
+        content = f"preview {descriptor['slot']}".encode()
+        grant = grant_upload(api, execution, descriptor["slot"], content, content_types[descriptor["slot"]])
+        assert http.put(grant["url"], content=content, headers=grant["headers"]).status_code == 200
+        outputs.append({**descriptor, "uploadId": grant["uploadId"]})
+    result = {**workflow_identity(execution), "outcome": "completed", "data": {}, "outputs": outputs}
+    assert api.post(workflow_path(execution, "result"), result, format="json").json() == {"status": "applied"}
+
+    # The test process reaches storage at the API endpoint; browsers use STUDIO_S3_BROWSER_ENDPOINT.
+    settings.STUDIO_S3_BROWSER_ENDPOINT = settings.STUDIO_S3_ENDPOINT
+    workbench = APIClient()
+    workbench.force_login(django_user_model.objects.create_user("preview-reader"))
+    project = f"/api/v1/projects/{execution.task.schedule_id}"
+    [group] = workbench.get(f"{project}/deliveries").json()["results"]
+    [delivery] = group["deliveries"]
+    for slot, content_type in content_types.items():
+        version = delivery[slot]
+        preview = workbench.get(f"{project}/asset-versions/{version['id']}/preview").json()
+        response = http.get(preview["url"])
+        assert response.status_code == 200 and response.content == f"preview {slot}".encode()
+        assert response.headers["content-type"] == content_type == preview["contentType"]
+        assert response.headers["cache-control"] == "private, no-store"
+        assert http.get(preview["url"].split("?", 1)[0]).status_code == 403
+    other = create_leaf(scheduler, leaves.EpisodeEdit).task.schedule_id
+    assert workbench.get(
+        f"/api/v1/projects/{other}/asset-versions/{delivery['video']['id']}/preview",
+    ).status_code == 404
