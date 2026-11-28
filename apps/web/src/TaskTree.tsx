@@ -56,8 +56,9 @@ export function TaskTree({ project, onShowOutputs }: {
   const current = levels.at(-1)?.rootTaskId ?? null
   const key = viewKey(project.id, levels.map(level => level.rootTaskId))
 
-  // Focus this task once its level has rendered (drill-down, return or locate). Only locate also centres it,
-  // so a viewport restored for a level keeps the user's own pan and zoom.
+  // Focus this task once its level has rendered. Drill-down, return and closing details only move focus, so a
+  // restored viewport keeps the user's pan and zoom. Locate also pans, but only when the target is off screen:
+  // the user asked to see that task.
   const [focusTarget, setFocusTarget] = useState<{ id: string; centre: boolean } | null>(null)
 
   useLayoutEffect(() => {
@@ -155,8 +156,8 @@ export function TaskTree({ project, onShowOutputs }: {
       const index = ((cycle[state] ?? -1) + 1) % visible.length
       setCycle({ ...cycle, [state]: index })
       setSelected(visible[index].id)
-      if (view) setView(centreOn(visible[index], view, size.width, size.height))
-      setFocusTarget({ id: visible[index].id, centre: false })
+      // Locate only pans when the target is off screen; a visible target keeps the user's viewport.
+      setFocusTarget({ id: visible[index].id, centre: true })
       return
     }
     const found = await api.tasks(project.id, { state, limit: 1 })

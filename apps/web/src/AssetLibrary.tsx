@@ -380,7 +380,14 @@ function PreviewDialog({ projectId, version, title, onClose }: {
   const expiresAt = signed.data?.expiresAt
   useEffect(() => {
     if (!expiresAt) return
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(expiresAt) - Date.now()))
+    // Re-arm until the clock has really passed the expiry, so a clock adjustment cannot leave it shown.
+    let timer: ReturnType<typeof setTimeout>
+    const check = () => {
+      const left = Date.parse(expiresAt) - Date.now()
+      setNow(Date.now())
+      if (left > 0) timer = setTimeout(check, left)
+    }
+    timer = setTimeout(check, Math.max(0, Date.parse(expiresAt) - Date.now()))
     return () => clearTimeout(timer)
   }, [expiresAt])
   useEffect(() => {
