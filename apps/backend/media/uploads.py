@@ -12,11 +12,15 @@ from .models import ExecutionUpload
 from .storage import StorageUnavailable, UploadConflict, sign_upload
 
 
-@transaction.atomic
-def _allocate_upload(execution, slot, size_bytes, content_type):
-    Schedule.objects.select_for_update().get(pk=execution.task.schedule_id)
-    if not configured_scheduler().workflow_is_current(execution.id):
+def _require_active(scheduler, execution_id):
+    if not scheduler.workflow_is_current(execution_id):
         raise UploadConflict("Uploads require a current, accepted workflow before its deadline.")
+
+
+@transaction.atomic
+def _allocate_upload(scheduler, execution, slot, size_bytes, content_type):
+    Schedule.objects.select_for_update().get(pk=execution.task.schedule_id)
+    _require_active(scheduler, execution.id)
     if not settings.STUDIO_MEDIA_BUCKET:
         raise StorageUnavailable()
     upload_id = uuid4()
@@ -42,8 +46,11 @@ def authorize_upload(execution, *, slot, size_bytes, content_type):
         raise ValidationError({"slot": "This task does not produce media outputs."})
     if task_type == "episode_edit" and slot not in DELIVERY_KINDS:
         raise ValidationError({"slot": "Expected video, subtitles or timeline."})
-    upload = _allocate_upload(execution, slot, size_bytes, content_type)
+    scheduler = configured_scheduler()
+    upload = _allocate_upload(scheduler, execution, slot, size_bytes, content_type)
     url, headers, expires_at = sign_upload(upload, execution.deadline_at)
+    # Credential resolution during signing can overlap completion or a retry.
+    _require_active(scheduler, execution.id)
     return {
         "uploadId": str(upload.pk),
         "objectKey": upload.object_key,

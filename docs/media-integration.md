@@ -5,7 +5,7 @@
 ## 上传私有对象
 
 1. 用工作流凭据向 `POST /internal/v1/executions/{executionId}/uploads` 提交 `projectId`、`taskId`、`executionId`、`schemaVersion`、`slot`、`sizeBytes` 和 `contentType`。执行须是当前、已领取且未到期的媒体任务。大小为 1 字节到 5 GiB 的整数，内容类型为单个 MIME 类型，例如 `video/mp4`。
-2. 以返回的 `method`、`url` 和 `headers` 将原始文件字节直接写入私有对象存储。同一执行中的同一槽位重复申请相同大小和类型，会返回同一 `uploadId` 和对象键。签名地址每次可重签，最长有效 5 分钟且受执行截止时间限制。尺寸或类型变更返回 409，候选产物可使用不同槽位。
+2. 以返回的 `method`、`url` 和 `headers` 将原始文件字节直接写入私有对象存储。同一执行中的同一槽位重复申请相同大小和类型，会返回同一 `uploadId` 和对象键。签名地址每次可重签，最长有效 5 分钟且受执行截止时间限制。签名完成时再次核对执行状态。执行已结束、尺寸或类型变更均返回 409。候选产物可使用不同槽位。
 3. 签名绑定 `Content-Type`、`Content-Length` 和 `If-None-Match: *`。存储的首次成功写入保留该槽位的字节，重传时复用相同文件，MinIO 对已有对象返回 412。工作流可继续提交媒体回调，由平台核查对象是否符合已授权的元数据。 [S3 条件写入](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
 4. 成功回调的每个 `outputs[]` 声明 `slot`、`assetKey`、`kind`、`title` 和对应的 `uploadId`。同一执行不同槽位、其他执行或其他项目的上传都会返回 400。对象缺失或元数据不符时返回 409，存储暂不可用时返回 503。工作流可以在对象写入成功或存储恢复后用相同身份重试。
 

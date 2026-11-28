@@ -16,13 +16,13 @@ from django.db import connection
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from media import workflow_outputs
+from media import uploads as media_uploads, workflow_outputs
 from media.models import AssetItem, AssetVersion, EpisodeDelivery, ExecutionUpload
 from media.storage import storage_client
 from production import leaves
 from production.models import Episode, Project, Shot
 from scheduler.models import ExecutionState, TaskState
-from scheduler.tasks import PlanError
+from scheduler.tasks import Failed, PlanError
 from scheduler.worker import Worker, configured_scheduler
 
 
@@ -228,6 +228,29 @@ def test_upload_cannot_be_claimed_by_other_slot_project_or_execution(live_media)
         format="json",
     ).status_code == 409
     assert not AssetVersion.objects.exists()
+
+
+def test_upload_signature_is_withheld_if_execution_finishes_during_signing(live_media, monkeypatch):
+    api, _, scheduler = live_media
+    execution = create_leaf(scheduler, leaves.ShotImage)
+    accept_client(api, execution)
+    sign = media_uploads.sign_upload
+
+    def finish_before_signing(upload, deadline_at):
+        assert not connection.in_atomic_block
+        assert scheduler.submit_workflow_result(execution.pk, Failed("test_failure")) == "applied"
+        return sign(upload, deadline_at)
+
+    monkeypatch.setattr(media_uploads, "sign_upload", finish_before_signing)
+    response = api.post(
+        workflow_path(execution, "uploads"),
+        {**workflow_identity(execution), "slot": "main", "sizeBytes": 5, "contentType": "image/png"},
+        format="json",
+    )
+    assert response.status_code == 409
+    assert "url" not in response.json()
+    execution.refresh_from_db()
+    assert execution.state == ExecutionState.FAILED
 
 
 def test_delivery_registration_rolls_back_with_workflow_completion(live_media, monkeypatch):
