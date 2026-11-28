@@ -56,8 +56,9 @@ export function TaskTree({ project, onShowOutputs }: {
   const current = levels.at(-1)?.rootTaskId ?? null
   const key = viewKey(project.id, levels.map(level => level.rootTaskId))
 
-  // Focus and centre on this task once its level has rendered (drill-down, return or locate).
-  const [focusTarget, setFocusTarget] = useState<string | null>(null)
+  // Focus this task once its level has rendered (drill-down, return or locate). Only locate also centres it,
+  // so a viewport restored for a level keeps the user's own pan and zoom.
+  const [focusTarget, setFocusTarget] = useState<{ id: string; centre: boolean } | null>(null)
 
   useLayoutEffect(() => {
     const element = box.current
@@ -87,10 +88,10 @@ export function TaskTree({ project, onShowOutputs }: {
 
   useEffect(() => {
     if (!focusTarget || !view) return
-    const target = positions.get(focusTarget)
+    const target = positions.get(focusTarget.id)
     if (!target) return
     setFocusTarget(null)
-    if (!isVisible(target, view, size)) setView(centreOn(target, view, size.width, size.height))
+    if (focusTarget.centre && !isVisible(target, view, size)) setView(centreOn(target, view, size.width, size.height))
     requestAnimationFrame(() => {
       box.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(target.id)}"]`)
         ?.focus({ preventScroll: true })
@@ -105,12 +106,12 @@ export function TaskTree({ project, onShowOutputs }: {
   }, [])
 
   // Leaving a level saves its viewport under the level's own key.
-  const changeLevel = (next: Level[], focus: string | null) => {
+  const changeLevel = (next: Level[], focus: string | null, centre = false) => {
     if (view) savedViews.set(key, view)
     setLevels(next)
     setSelected(null)
     setView(null)
-    setFocusTarget(focus)
+    setFocusTarget(focus ? { id: focus, centre } : null)
   }
   const enter = (task: { id: string; name: string }) => {
     if (task.id === current) return
@@ -155,7 +156,7 @@ export function TaskTree({ project, onShowOutputs }: {
       setCycle({ ...cycle, [state]: index })
       setSelected(visible[index].id)
       if (view) setView(centreOn(visible[index], view, size.width, size.height))
-      setFocusTarget(visible[index].id)
+      setFocusTarget({ id: visible[index].id, centre: false })
       return
     }
     const found = await api.tasks(project.id, { state, limit: 1 })
@@ -165,7 +166,7 @@ export function TaskTree({ project, onShowOutputs }: {
     const parent = target.path.at(-1)
     if (!parent) return
     const parentNode = await api.task(project.id, parent)
-    changeLevel([...levels, { rootTaskId: parent, name: parentNode.name }], target.id)
+    changeLevel([...levels, { rootTaskId: parent, name: parentNode.name }], target.id, true)
     setSelected(target.id)
   }
 
@@ -241,7 +242,7 @@ export function TaskTree({ project, onShowOutputs }: {
             maxHeight={detailMaxHeight(size.height)}
             onClose={() => {
               setSelected(null)
-              setFocusTarget(selectedNode.id)
+              setFocusTarget({ id: selectedNode.id, centre: false })
             }}
             onOpenSubtree={() => enter(selectedNode)}
             onShowOutputs={onShowOutputs}

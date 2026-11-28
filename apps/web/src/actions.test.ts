@@ -54,7 +54,10 @@ test('sign-out wins over an older session read and works without a fresh session
 })
 
 test('previews re-sign shortly before their signature expires', async () => {
-  const { refreshDelay } = await import('./AssetLibrary')
+  const { freshFor, refreshDelay } = await import('./AssetLibrary')
+  // Received with five minutes left: fresh for four and a half, regardless of when focus returns.
+  expect(freshFor('2026-11-28T12:05:00Z', Date.parse('2026-11-28T12:00:00Z'))).toBe(270_000)
+  expect(freshFor(undefined, 0)).toBe(0)
   const now = Date.parse('2026-11-28T12:00:00Z')
   expect(refreshDelay(undefined, now)).toBe(false)
   expect(refreshDelay('2026-11-28T12:05:00Z', now)).toBe(270_000)

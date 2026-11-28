@@ -354,6 +354,12 @@ export function refreshDelay(expiresAt: string | undefined, now = Date.now()) {
   return Math.max(5_000, Date.parse(expiresAt) - now - REFRESH_BEFORE_EXPIRY_MS)
 }
 
+/** Query staleTime counts from dataUpdatedAt; a signature stays fresh until 30 s before it expires. */
+export function freshFor(expiresAt: string | undefined, updatedAt: number) {
+  if (!expiresAt) return 0
+  return Math.max(0, Date.parse(expiresAt) - REFRESH_BEFORE_EXPIRY_MS - updatedAt)
+}
+
 function PreviewDialog({ projectId, version, title, onClose }: {
   projectId: string
   version: AssetVersion
@@ -367,21 +373,22 @@ function PreviewDialog({ projectId, version, title, onClose }: {
     gcTime: 0,
     // Re-sign shortly before the signature's own expiry. Until then a fresh signature is kept, so focus
     // changes do not swap the URL under a playing video.
-    staleTime: query => refreshDelay(query.state.data?.expiresAt) || 0,
+    staleTime: query => freshFor(query.state.data?.expiresAt, query.state.dataUpdatedAt),
     refetchInterval: query => refreshDelay(query.state.data?.expiresAt),
   })
   const [now, setNow] = useState(() => Date.now())
   const expiresAt = signed.data?.expiresAt
   useEffect(() => {
     if (!expiresAt) return
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(expiresAt) - Date.now()) + 50)
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(expiresAt) - Date.now()))
     return () => clearTimeout(timer)
   }, [expiresAt])
   useEffect(() => {
     dialog.current?.showModal()
   }, [])
   const kind = previewKind(version.contentType)
-  const current = signed.data && Date.parse(signed.data.expiresAt) > now ? signed.data : null
+  // Rendering after the timer fires compares against the clock, so an expired URL is never shown.
+  const current = signed.data && Date.parse(signed.data.expiresAt) > Math.max(now, Date.now()) ? signed.data : null
   const url = current?.url
   return (
     <dialog ref={dialog} className="asset-dialog" aria-label={`预览 ${title}`} onClose={onClose}>
