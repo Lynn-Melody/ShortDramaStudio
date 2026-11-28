@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { api, ApiError, rememberCsrf, withQuery } from './api'
 import type { TaskNode } from './api'
 import {
-  blockedMessage, detailSide, fitViewport, layoutTree, percent, previewKind, projectControl, projectNotes, scopeQuery,
+  blockedMessage, detailSide, dotVisible, fitViewport, layoutTree, percent, previewKind, projectControl, projectNotes, scopeQuery,
   storedTheme,
 } from './model'
 
@@ -59,6 +59,19 @@ test('fit and detail placement keep the selected dot uncovered', () => {
   expect(view.zoom).toBeGreaterThan(0)
   expect(detailSide({ y: 0 }, { x: 0, y: 0, zoom: 1 }, 400)).toBe('bottom')
   expect(detailSide({ y: 300 }, { x: 0, y: 0, zoom: 1 }, 400)).toBe('top')
+})
+
+test('locate leaves fully visible dots where they are', () => {
+  const size = { width: 400, height: 300 }
+  const view = { x: 0, y: 0, zoom: 1 }
+  // An 18 px dot centred 20 px from the left edge spans 11-29 px: fully visible, so no pan.
+  expect(dotVisible({ x: 20, y: 150 }, view, size, 18)).toBe(true)
+  expect(dotVisible({ x: 9, y: 150 }, view, size, 18)).toBe(true)
+  expect(dotVisible({ x: 8, y: 150 }, view, size, 18)).toBe(false)
+  expect(dotVisible({ x: 395, y: 150 }, view, size, 18)).toBe(false)
+  expect(dotVisible({ x: 20, y: 75 }, { x: 0, y: 0, zoom: 2 }, size, 18)).toBe(true)
+  expect(dotVisible({ x: 20, y: 150 }, { x: 0, y: 0, zoom: 2 }, size, 18)).toBe(false)
+  expect(dotVisible({ x: 4, y: 75 }, { x: 0, y: 0, zoom: 2 }, size, 18)).toBe(false)
 })
 
 test('blocked reasons explain provider checks and failures', () => {

@@ -87,6 +87,16 @@ export function centreOn(node: { x: number; y: number }, view: Viewport, width: 
   return { zoom, x: width / 2 - node.x * zoom, y: height / 2 - node.y * zoom }
 }
 
+/** True when the whole dot, at its rendered size, lies inside the canvas. */
+export function dotVisible(
+  node: { x: number; y: number }, view: Viewport, size: { width: number; height: number }, diameter: number,
+) {
+  const x = view.x + node.x * view.zoom
+  const y = view.y + node.y * view.zoom
+  const radius = (diameter * view.zoom) / 2
+  return x - radius >= 0 && y - radius >= 0 && x + radius <= size.width && y + radius <= size.height
+}
+
 /** Keep the detail card on the half of the canvas away from the selected dot. */
 export function detailSide(node: { y: number } | undefined, view: Viewport, height: number): 'top' | 'bottom' {
   return node && view.y + node.y * view.zoom > height / 2 ? 'top' : 'bottom'

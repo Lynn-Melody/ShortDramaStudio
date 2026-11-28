@@ -8,7 +8,7 @@ import { afterRetry } from './actions'
 import { api, ApiError, type ProjectSummary, type TaskNode } from './api'
 import { usePollInterval } from './hooks'
 import {
-  blockedMessage, centreOn, detailMaxHeight, detailSide, fitViewport, formatTime, layoutTree, type PositionedNode, STATE_LABELS,
+  blockedMessage, centreOn, detailMaxHeight, detailSide, dotVisible, fitViewport, formatTime, layoutTree, type PositionedNode, STATE_LABELS,
   type Viewport, viewKey,
 } from './model'
 
@@ -36,11 +36,6 @@ const MAX_ZOOM = 2
 /** Saved canvas viewports per project and drill-down path, kept for the page lifetime. */
 const savedViews = new Map<string, Viewport>()
 
-function isVisible(node: { x: number; y: number }, view: Viewport, size: { width: number; height: number }) {
-  const x = view.x + node.x * view.zoom
-  const y = view.y + node.y * view.zoom
-  return x > 24 && y > 24 && x < size.width - 24 && y < size.height - 24
-}
 
 export function TaskTree({ project, onShowOutputs }: {
   project: ProjectSummary
@@ -92,7 +87,9 @@ export function TaskTree({ project, onShowOutputs }: {
     const target = positions.get(focusTarget.id)
     if (!target) return
     setFocusTarget(null)
-    if (focusTarget.centre && !isVisible(target, view, size)) setView(centreOn(target, view, size.width, size.height))
+    if (focusTarget.centre && !dotVisible(target, view, size, DOT_SIZE)) {
+      setView(centreOn(target, view, size.width, size.height))
+    }
     requestAnimationFrame(() => {
       box.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(target.id)}"]`)
         ?.focus({ preventScroll: true })
