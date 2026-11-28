@@ -1,5 +1,7 @@
+import base64
 import json
 import os
+from threading import Barrier, Thread
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -7,6 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import Client
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -141,7 +144,7 @@ def test_workbench_sessions_are_separate_from_service_credentials(settings, user
                         format="json").status_code == 403
     token = {"HTTP_X_CSRFTOKEN": browser.cookies["csrftoken"].value}
     wrong = browser.post("/api/v1/session", {"username": "director", "password": "wrong"}, format="json", **token)
-    assert wrong.status_code == 400 and wrong.json()["code"] == "invalid_credentials"
+    assert wrong.status_code == 400 and wrong.json() == {"non_field_errors": ["Invalid username or password."]}
     login = browser.post("/api/v1/session", {"username": "director", "password": "studio-password"},
                          format="json", **token)
     assert login.status_code == 200 and login.json()["authenticated"] and login.json()["username"] == "director"
@@ -263,6 +266,19 @@ def test_create_start_inspect_pause_and_resume_real_production(api):
     assert [card["assetKey"] for card in get(api, project_path(pid, "/assets"), scope="all", q="STAT")["results"]] == [
         "station",
     ]
+    first_page = get(api, project_path(pid, "/assets"), limit=2)
+    current_keys = [card["assetKey"] for card in current["results"]]
+    assert [card["assetKey"] for card in first_page["results"]] == current_keys[:2]
+    # Production moving past the episode must not change later pages of a current-scope listing.
+    episode_task = Task.objects.filter(schedule_id=pid, task_type="make_episode", input__episodeNumber=1)
+    [original_state] = episode_task.values_list("state", flat=True)
+    episode_task.update(state=TaskState.COMPLETED)
+    assert get(api, project_path(pid))["currentEpisode"] is None
+    rest = get(api, project_path(pid, "/assets"), limit=200, cursor=first_page["nextCursor"])
+    assert (rest["scope"], rest["episode"]) == ("episode", episode_one)
+    assert [card["assetKey"] for card in rest["results"]] == current_keys[2:]
+    assert get(api, project_path(pid, "/assets"), status=400, scope="shared", cursor=first_page["nextCursor"])
+    episode_task.update(state=original_state)
 
     studio.run()
     done = get(api, project_path(pid))
@@ -430,6 +446,7 @@ def test_queries_are_scoped_to_one_project(api, settings, monkeypatch):
     assert (url.scheme, url.netloc) == ("http", "media.example.test:9000")
     assert url.path == f"/studio-test/{version.upload.object_key}"
     assert query["X-Amz-Expires"] == ["300"] and query["response-content-disposition"] == ["inline"]
+    assert query["response-cache-control"] == ["private, no-store"]
     ExecutionUpload.objects.filter(pk=version.upload_id).update(content_type="image/svg+xml")
     unsafe = parse_qs(urlsplit(api.get(project_path(first, f"/asset-versions/{version.pk}/preview")).json()["url"]).query)
     assert unsafe["response-content-disposition"] == ["attachment"]
@@ -447,6 +464,34 @@ def test_project_cursor_pages_are_stable(api):
         seen += [item["id"] for item in page["results"]]
     assert seen == ids[::-1]
     assert get(api, PROJECTS, status=400, limit=0)["limit"]
+    # Well-formed cursors whose values have the wrong types are rejected, not crashed on.
+    for values in ([page["results"][0]["createdAt"], 7], [{}, ids[0]], [page["results"][0]["createdAt"]]):
+        forged = base64.urlsafe_b64encode(json.dumps({"c": None, "k": values}).encode()).decode()
+        assert get(api, PROJECTS, status=400, cursor=forged) == {"cursor": ["Invalid cursor."]}
+    forged = base64.urlsafe_b64encode(json.dumps({"c": None, "k": [7]}).encode()).decode()
+    assert get(api, project_path(ids[0], "/tasks"), status=400, cursor=forged) == {"cursor": ["Invalid cursor."]}
+
+
+def test_concurrent_replays_report_one_creation(user):
+    project_id, barrier, statuses = str(uuid4()), Barrier(2), []
+    clients = [APIClient() for _ in range(2)]
+    for client in clients:
+        client.force_login(user)
+
+    def submit(client):
+        try:
+            barrier.wait()
+            statuses.append(client.post(PROJECTS, {"idea": IDEA, "projectId": project_id}, format="json").status_code)
+        finally:
+            connection.close()
+
+    threads = [Thread(target=submit, args=(client,)) for client in clients]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(statuses) == [200, 201]
+    assert Project.objects.count() == Task.objects.count() == 1
 
 
 def test_admin_actions_use_domain_services():

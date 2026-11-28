@@ -8,9 +8,9 @@ from django.db import connection, transaction
 from django.http import Http404
 from django.middleware.csrf import get_token
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -33,18 +33,14 @@ class Conflict(APIException):
         self.detail = {"detail": message, "code": code}
 
 
-class InvalidCredentials(APIException):
-    status_code = 400
-
-    def __init__(self):
-        super().__init__()
-        self.detail = {"detail": "Invalid username or password.", "code": "invalid_credentials"}
-
-
 SCOPED_ROWS = (Project.DoesNotExist, Episode.DoesNotExist, Task.DoesNotExist, AssetItem.DoesNotExist,
                AssetVersion.DoesNotExist)
 ERRORS = {403: v1.Error, 404: v1.Error}
 NO_STORE = {"Cache-Control": "no-store"}
+CSRF = [OpenApiParameter(
+    "X-CSRFToken", OpenApiTypes.STR, OpenApiParameter.HEADER, required=True,
+    description="csrfToken from GET /api/v1/session.",
+)]
 
 
 @contextmanager
@@ -102,28 +98,28 @@ class SessionView(APIView):
     def session(request, user=None):
         user = user or request.user
         authenticated = bool(user and user.is_authenticated)
-        return Response({
+        return Response(v1.output(v1.Session, {
             "authenticated": authenticated,
             "username": user.get_username() if authenticated else None,
             "csrfToken": get_token(request),
-        }, headers=NO_STORE)
+        }), headers=NO_STORE)
 
     @extend_schema(operation_id="session_read", responses={200: v1.Session}, summary="Read the browser session and issue a CSRF token")
     def get(self, request):
         return self.session(request)
 
-    @extend_schema(operation_id="session_login", request=v1.SessionLogin, responses={200: v1.Session, 400: OpenApiTypes.OBJECT, 403: v1.Error},
+    @extend_schema(operation_id="session_login", parameters=CSRF, request=v1.SessionLogin, responses={200: v1.Session, 400: v1.FieldErrors, 403: v1.Error},
                    summary="Sign in with a Django account")
     def post(self, request):
         SessionAuthentication().enforce_csrf(request)
         data = validated(v1.SessionLogin, request.data)
         user = authenticate(request._request, username=data["username"], password=data["password"])
         if user is None:
-            raise InvalidCredentials()
+            raise ValidationError({"non_field_errors": ["Invalid username or password."]})
         login(request._request, user)
         return self.session(request, user)
 
-    @extend_schema(operation_id="session_logout", responses={204: None, 403: v1.Error}, summary="Sign out")
+    @extend_schema(operation_id="session_logout", parameters=CSRF, responses={204: None, 403: v1.Error}, summary="Sign out")
     def delete(self, request):
         SessionAuthentication().enforce_csrf(request)
         logout(request._request)
@@ -131,7 +127,7 @@ class SessionView(APIView):
 
 
 class ProjectsView(WorkbenchView):
-    @extend_schema(operation_id="projects_list", parameters=[v1.ListQuery], responses={200: v1.ProjectList, **ERRORS},
+    @extend_schema(operation_id="projects_list", parameters=[v1.ListQuery], responses={200: v1.ProjectList, 400: v1.FieldErrors, **ERRORS},
                    summary="List projects, newest first")
     @read
     def get(self, request):
@@ -140,8 +136,8 @@ class ProjectsView(WorkbenchView):
             cursor=query.get("cursor"), limit=query["limit"],
         )))
 
-    @extend_schema(operation_id="projects_create", request=v1.ProjectCreate, responses={201: v1.ProjectDetail, 200: v1.ProjectDetail,
-                   400: OpenApiTypes.OBJECT, 409: v1.Error, **ERRORS},
+    @extend_schema(operation_id="projects_create", parameters=CSRF, request=v1.ProjectCreate, responses={201: v1.ProjectDetail, 200: v1.ProjectDetail,
+                   400: v1.FieldErrors, 409: v1.Error, **ERRORS},
                    summary="Create a paused project and its root task, or replay a creation")
     @scoped
     def post(self, request):
@@ -158,9 +154,7 @@ class ProjectView(WorkbenchView):
 
 
 def _switch(project_id, running):
-    workbench.set_running(workbench.get_project(project_id), running)
-    with consistent_read():
-        summary = workbench.project_summary(workbench.get_project(project_id))
+    summary = workbench.set_running(workbench.get_project(project_id), running)
     return Response(v1.output(v1.ProjectSummary, summary))
 
 
@@ -168,7 +162,7 @@ SWITCH_RESPONSES = {200: v1.ProjectSummary, 409: v1.Error, **ERRORS}
 
 
 class PauseProject(WorkbenchView):
-    @extend_schema(operation_id="project_pause", request=None, responses=SWITCH_RESPONSES,
+    @extend_schema(operation_id="project_pause", parameters=CSRF, request=None, responses=SWITCH_RESPONSES,
                    summary="Stop new claims. Claimed executions may still finish.")
     @scoped
     def post(self, request, projectId):
@@ -176,7 +170,7 @@ class PauseProject(WorkbenchView):
 
 
 class ResumeProject(WorkbenchView):
-    @extend_schema(operation_id="project_resume", request=None, responses=SWITCH_RESPONSES,
+    @extend_schema(operation_id="project_resume", parameters=CSRF, request=None, responses=SWITCH_RESPONSES,
                    summary="Allow claims again. The first resume starts production.")
     @scoped
     def post(self, request, projectId):
@@ -208,7 +202,7 @@ class ShotsView(WorkbenchView):
 
 
 class TaskTreeView(WorkbenchView):
-    @extend_schema(operation_id="task_tree_read", parameters=[v1.TaskTreeQuery], responses={200: v1.TaskTree, 400: OpenApiTypes.OBJECT, **ERRORS},
+    @extend_schema(operation_id="task_tree_read", parameters=[v1.TaskTreeQuery], responses={200: v1.TaskTree, 400: v1.FieldErrors, **ERRORS},
                    summary="Running paths with shared ancestors, or a subtree two levels deep")
     @read
     def get(self, request, projectId):
@@ -218,7 +212,7 @@ class TaskTreeView(WorkbenchView):
 
 
 class TasksView(WorkbenchView):
-    @extend_schema(operation_id="tasks_list", parameters=[v1.TaskListQuery], responses={200: v1.TaskList, 400: OpenApiTypes.OBJECT, **ERRORS},
+    @extend_schema(operation_id="tasks_list", parameters=[v1.TaskListQuery], responses={200: v1.TaskList, 400: v1.FieldErrors, **ERRORS},
                    summary="Locate tasks by state, with their ancestor paths")
     @read
     def get(self, request, projectId):
@@ -243,14 +237,13 @@ class TaskView(WorkbenchView):
 
 
 class RetryTask(WorkbenchView):
-    @extend_schema(operation_id="task_retry", request=None, responses={200: v1.TaskDetail, 409: v1.Error, **ERRORS},
+    @extend_schema(operation_id="task_retry", parameters=CSRF, request=None, responses={200: v1.TaskDetail, 409: v1.Error, **ERRORS},
                    summary="Retry a failed-blocked or timed-out task")
     @scoped
     def post(self, request, projectId, taskId):
         project = self.project(projectId)
-        workbench.retry(project, taskId)
-        with consistent_read():
-            return Response(_task_detail(workbench.get_project(projectId), taskId))
+        detail = workbench.retry(project, taskId, output_count=lambda pk: library.output_count(project, pk))
+        return Response(v1.output(v1.TaskDetail, detail))
 
 
 class TaskOutputsView(WorkbenchView):
@@ -261,7 +254,7 @@ class TaskOutputsView(WorkbenchView):
 
 
 class AssetsView(WorkbenchView):
-    @extend_schema(operation_id="assets_list", parameters=[v1.AssetQuery], responses={200: v1.AssetList, 400: OpenApiTypes.OBJECT, **ERRORS},
+    @extend_schema(operation_id="assets_list", parameters=[v1.AssetQuery], responses={200: v1.AssetList, 400: v1.FieldErrors, **ERRORS},
                    summary="Asset cards in one scope, grouped by asset with the latest version")
     @read
     def get(self, request, projectId):
@@ -283,7 +276,7 @@ class AssetVersionsView(WorkbenchView):
 
 
 class DeliveriesView(WorkbenchView):
-    @extend_schema(operation_id="deliveries_list", parameters=[v1.DeliveryQuery], responses={200: v1.DeliveryList, 400: OpenApiTypes.OBJECT, **ERRORS},
+    @extend_schema(operation_id="deliveries_list", parameters=[v1.DeliveryQuery], responses={200: v1.DeliveryList, 400: v1.FieldErrors, **ERRORS},
                    summary="Episode deliveries with the exact video, subtitles and timeline versions")
     @read
     def get(self, request, projectId):

@@ -6,8 +6,8 @@
 
 - 公开接口只接受 Django 会话。工作流和核查服务的 Bearer 凭据在这里无效，工作台会话也不能调用 `/internal/v1`。首版单工作室共用项目，任何已登录的有效账号都可读取和操作全部项目。
 - 页面启动时调用 `GET /api/v1/session`，取得登录状态和 `csrfToken`，并写入 `csrftoken` Cookie。登录用 `POST /api/v1/session` 提交 `username`、`password`，退出用 `DELETE /api/v1/session`。所有 POST 和 DELETE 都带请求头 `X-CSRFToken`，登录会轮换令牌，之后使用登录响应中的新 `csrfToken`。开发账号用 `createsuperuser` 创建，生产入口由部署环境的统一身份认证接入。关闭 `DEBUG` 的部署须用 `STUDIO_CSRF_TRUSTED_ORIGINS` 列出工作台来源，开发默认信任 `http://127.0.0.1:5173` 和 `http://localhost:5173`。
-- 未登录或缺少 CSRF 令牌返回 403。路径里的项目、任务、素材或版本不属于该项目时返回 404；查询参数中的 `episodeId` 或 `shotId` 不属于该项目时返回 400。参数校验失败的 400 按字段给出错误，例如 `{"episodeId": ["..."]}`；登录失败为 `invalid_credentials`。冲突返回 409，响应体为 `{"detail": "...", "code": "..."}`。
-- 列表使用游标：响应的 `nextCursor` 为 `null` 表示已到末页，否则把它作为下一页的 `cursor`。`limit` 默认为 50，最大为 200。每个查询响应读自同一个数据库快照。
+- 未登录或缺少 CSRF 令牌返回 403。路径里的项目、任务、素材或版本不属于该项目时返回 404；查询参数中的 `episodeId` 或 `shotId` 不属于该项目时返回 400。400 的响应体按字段列出错误信息，例如 `{"episodeId": ["..."]}`、`{"cursor": ["Invalid cursor."]}`。登录失败时返回 `{"non_field_errors": [...]}`。冲突返回 409，响应体为 `{"detail": "...", "code": "..."}`。动作接口在契约中声明了必需的 `X-CSRFToken` 请求头。
+- 列表使用游标：响应的 `nextCursor` 为 `null` 表示已到末页，否则把它作为下一页的 `cursor`，其余查询参数保持不变。游标绑定首页解析出的素材范围：`scope=current` 的后续页沿用首页所在的集，即使制作已进入下一集；改用其他范围请求时游标无效，返回 400。`limit` 默认为 50，最大为 200。每个查询响应读自同一个数据库快照。
 
 ## 项目
 
@@ -45,7 +45,7 @@
 
 `GET .../tasks/{taskId}/outputs` 返回该任务实际生成的全部确切版本及其所属素材，不受当前素材库范围和筛选影响。已完成的全剧规划、分集剧本和结构化任务在 `documents` 中指明文本产物所在的项目或分集。`GET .../deliveries` 按集分组返回每次交付的成片、字幕和时间轴版本，可用 `episodeId` 限定，`current` 表示分集当前采用的交付。
 
-`GET .../asset-versions/{versionId}/preview` 为一个版本签发 5 分钟内有效的只读 GET 地址，并返回内容类型和大小。图片、音频、视频和 WebVTT 字幕以内联方式打开，其他类型（例如时间轴 JSON）以下载方式打开，避免在存储源上渲染可执行内容。预览响应不缓存。图片和视频可直接作为 `src` 使用，过期后重新请求。私有对象没有匿名读取，地址只授权该对象。签名地址使用 `STUDIO_S3_BROWSER_ENDPOINT`，Compose 开发环境为 `http://127.0.0.1:9000`，未设置时沿用 API 的 `STUDIO_S3_ENDPOINT`。存储未配置时返回 503。
+`GET .../asset-versions/{versionId}/preview` 为一个版本签发 5 分钟内有效的只读 GET 地址，并返回内容类型和大小。图片、音频、视频和 WebVTT 字幕以内联方式打开，其他类型（例如时间轴 JSON）以下载方式打开，避免在存储源上渲染可执行内容。预览接口的响应和对象读取响应都带 `no-store`，浏览器不会缓存私有素材。图片和视频可直接作为 `src` 使用，过期后重新请求。私有对象没有匿名读取，地址只授权该对象。签名地址使用 `STUDIO_S3_BROWSER_ENDPOINT`，Compose 开发环境为 `http://127.0.0.1:9000`，未设置时沿用 API 的 `STUDIO_S3_ENDPOINT`。存储未配置时返回 503。
 
 ## Django Admin
 

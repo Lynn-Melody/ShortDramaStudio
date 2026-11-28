@@ -11,7 +11,7 @@ from contracts.public_v1 import VISUAL_KINDS
 from production.models import Episode, Shot
 from production.workbench import episode_ref, task_ref
 from scheduler.models import Task, TaskState
-from studio.pagination import Key, paginate
+from studio.pagination import Key, cursor_context, invalid_cursor, paginate
 
 from .models import AssetItem, AssetVersion, EpisodeDelivery
 from .storage import sign_preview
@@ -120,26 +120,37 @@ def _filter_kind(items, kind):
 def asset_list(project, current_episode, *, scope, episode_id=None, shot_id=None, kind=None, q=None, cursor, limit):
     items = _items(project).filter(Exists(AssetVersion.objects.filter(asset_id=OuterRef("pk"))))
     episode = None
-    if scope == "current":
+    if scope == "current" and cursor:
+        # Later pages keep the scope the first page resolved, even if production moved to another episode.
+        context = cursor_context(cursor)
+        if not isinstance(context, dict) or context.get("scope") not in ("shared", "episode"):
+            raise invalid_cursor()
+        scope, bound = context["scope"], context.get("episode")
+        if scope == "episode":
+            episode = Episode.objects.filter(project=project, pk=bound).first() if type(bound) is int else None
+            if episode is None:
+                raise invalid_cursor()
+    elif scope == "current":
         episode = current_episode
         scope = "shared" if episode is None else "episode"
     elif scope == "episode":
         episode = Episode.objects.filter(project=project, pk=episode_id).first()
         if episode is None:
-            raise ValidationError({"episodeId": "Unknown episode in this project."})
+            raise ValidationError({"episodeId": ["Unknown episode in this project."]})
     if scope == "shared":
         items = items.filter(episode__isnull=True)
     elif scope == "episode":
         items = items.filter(episode=episode)
     if shot_id is not None:
         if not Shot.objects.filter(pk=shot_id, episode__project=project).exists():
-            raise ValidationError({"shotId": "Unknown shot in this project."})
+            raise ValidationError({"shotId": ["Unknown shot in this project."]})
         items = items.filter(shot_id=shot_id)
     if kind is not None:
         items = _filter_kind(items, kind)
     if q:
         items = items.filter(Q(title__icontains=q) | Q(asset_key__icontains=q))
-    page, next_cursor = paginate(items, ASSET_KEYS, cursor=cursor, limit=limit)
+    context = {"scope": scope, "episode": episode.pk if episode else None}
+    page, next_cursor = paginate(items, ASSET_KEYS, cursor=cursor, limit=limit, context=context)
     return {"scope": scope, "episode": episode_ref(episode), "results": _cards(project, page), "nextCursor": next_cursor}
 
 
@@ -180,16 +191,19 @@ def task_outputs(project, task_id):
 
 def delivery_list(project, *, episode_id=None):
     deliveries = (
-        EpisodeDelivery.objects.filter(episode__project=project).select_related("episode", "execution")
+        EpisodeDelivery.objects.filter(
+            episode__project=project, execution__task__schedule_id=project.pk, video__asset__project=project,
+            subtitles__asset__project=project, timeline__asset__project=project,
+        ).select_related("episode", "execution")
         .order_by("episode__number", "-created_at", "-pk")
     )
     if episode_id is not None:
         if not Episode.objects.filter(project=project, pk=episode_id).exists():
-            raise ValidationError({"episodeId": "Unknown episode in this project."})
+            raise ValidationError({"episodeId": ["Unknown episode in this project."]})
         deliveries = deliveries.filter(episode_id=episode_id)
     deliveries = list(deliveries)
     version_ids = {getattr(delivery, f"{slot}_id") for delivery in deliveries for slot in ("video", "subtitles", "timeline")}
-    rows = _version_rows(AssetVersion.objects.filter(pk__in=version_ids))
+    rows = _version_rows(AssetVersion.objects.filter(pk__in=version_ids, asset__project=project))
     items = list(_items(project).filter(pk__in={row["assetId"] for row in rows}))
     versions = {row["id"]: row for row in _with_adoption(project, items, rows)}
     groups = {}

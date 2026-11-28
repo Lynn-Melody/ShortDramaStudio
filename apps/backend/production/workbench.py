@@ -1,6 +1,6 @@
 """Workbench reads and actions on production projects, scoped to one project at a time."""
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery
 from django.db.models.fields.json import KT
 from django.db.models.functions import Cast, Coalesce
@@ -160,23 +160,35 @@ def project_detail(project):
     }
 
 
+CREATE_LOCK_NAMESPACE = 0x5D05  # Two-key advisory locks do not share the scheduler's bigint key space.
+
+
 def create(idea, project_id=None):
     """Return (project, created). A replay with the same UUID and idea returns the original project."""
-    existed = project_id is not None and Project.objects.filter(pk=project_id).exists()
-    try:
-        project, _ = create_project(idea, project_id=project_id)
-    except StateConflict as exc:
-        raise ActionConflict("project_conflict", "This project ID already belongs to a different project.") from exc
-    return get_project(project.pk), not existed
+    with transaction.atomic():
+        if project_id is not None:
+            # Concurrent creations of one UUID queue here, so exactly one reports creation.
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(%s, hashtext(%s))", [CREATE_LOCK_NAMESPACE, str(project_id)],
+                )
+        existed = project_id is not None and Project.objects.filter(pk=project_id).exists()
+        try:
+            project, _ = create_project(idea, project_id=project_id)
+        except StateConflict as exc:
+            raise ActionConflict("project_conflict", "This project ID already belongs to a different project.") from exc
+        return get_project(project.pk), not existed
 
 
 def set_running(project, running):
+    """Switch dispatch and return the summary read under the same schedule lock."""
     # Check completion under the schedule lock that also serializes the root task's completion.
     with transaction.atomic():
         Schedule.objects.select_for_update().get(pk=project.pk)
         if Task.objects.filter(schedule_id=project.pk, parent__isnull=True, state=TaskState.COMPLETED).exists():
             raise ActionConflict("project_completed", "Completed projects cannot be paused or resumed.")
         configured_scheduler().set_enabled(project.pk, running)
+        return project_summary(get_project(project.pk))
 
 
 # Episodes and shots
@@ -204,7 +216,8 @@ def _episode_summary(episode, task, current_number):
 
 
 def _episodes(project):
-    return project.episodes.annotate(shot_count=Count("shots"))
+    # Aggregation drops Meta.ordering, so order explicitly.
+    return project.episodes.annotate(shot_count=Count("shots")).order_by("number")
 
 
 def episode_list(project):
@@ -422,13 +435,17 @@ def task_ref(project, task_id):
     return _ref(_task_row(project, task_id))
 
 
-def retry(project, task_id):
-    row = _task_row(project, task_id)
-    try:
-        configured_scheduler().retry(project.pk, row["pk"])
-    except StateConflict as exc:
-        if Task.objects.filter(pk=row["pk"], blocked_reason=PROVIDER_CHECK).exists():
+def retry(project, task_id, *, output_count):
+    """Retry under the schedule lock and return the detail read before any Worker can claim the task."""
+    with transaction.atomic():
+        Schedule.objects.select_for_update().get(pk=project.pk)
+        row = _task_row(project, task_id)
+        if row["blocked_reason"] == PROVIDER_CHECK:
             raise ActionConflict(
                 "provider_check_pending", "The workflow and provider jobs must be verified before a retry.",
-            ) from exc
-        raise ActionConflict("retry_unavailable", "Only failed-blocked or timed-out tasks can be retried.") from exc
+            )
+        try:
+            configured_scheduler().retry(project.pk, row["pk"])
+        except StateConflict as exc:
+            raise ActionConflict("retry_unavailable", "Only failed-blocked or timed-out tasks can be retried.") from exc
+        return task_detail(project, row["pk"], output_count=output_count)

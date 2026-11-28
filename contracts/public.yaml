@@ -45,6 +45,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectList'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldErrors'
+          description: ''
         '403':
           content:
             application/json:
@@ -60,6 +66,13 @@ paths:
     post:
       operationId: projects_create
       summary: Create a paused project and its root task, or replay a creation
+      parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       tags:
       - projects
       requestBody:
@@ -87,8 +100,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '409':
           content:
@@ -290,8 +302,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '403':
           content:
@@ -375,8 +386,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '403':
           content:
@@ -504,6 +514,12 @@ paths:
       operationId: project_pause
       summary: Stop new claims. Claimed executions may still finish.
       parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       - in: path
         name: projectId
         schema:
@@ -544,6 +560,12 @@ paths:
       operationId: project_resume
       summary: Allow claims again. The first resume starts production.
       parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       - in: path
         name: projectId
         schema:
@@ -623,8 +645,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '403':
           content:
@@ -706,8 +727,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '403':
           content:
@@ -805,6 +825,12 @@ paths:
       operationId: task_retry
       summary: Retry a failed-blocked or timed-out task
       parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       - in: path
         name: projectId
         schema:
@@ -865,6 +891,13 @@ paths:
     post:
       operationId: session_login
       summary: Sign in with a Django account
+      parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       tags:
       - session
       requestBody:
@@ -887,8 +920,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: {}
+                $ref: '#/components/schemas/FieldErrors'
           description: ''
         '403':
           content:
@@ -899,6 +931,13 @@ paths:
     delete:
       operationId: session_logout
       summary: Sign out
+      parameters:
+      - in: header
+        name: X-CSRFToken
+        schema:
+          type: string
+        description: csrfToken from GET /api/v1/session.
+        required: true
       tags:
       - session
       security:
@@ -1111,14 +1150,12 @@ components:
       - profile
     CodeEnum:
       enum:
-      - invalid_credentials
       - project_conflict
       - project_completed
       - retry_unavailable
       - provider_check_pending
       type: string
       description: |-
-        * `invalid_credentials` - invalid_credentials
         * `project_conflict` - project_conflict
         * `project_completed` - project_completed
         * `retry_unavailable` - retry_unavailable
@@ -1320,7 +1357,15 @@ components:
         detail:
           type: string
         code:
-          $ref: '#/components/schemas/CodeEnum'
+          allOf:
+          - $ref: '#/components/schemas/CodeEnum'
+          description: |-
+            Present on 409 conflicts.
+
+            * `project_conflict` - project_conflict
+            * `project_completed` - project_completed
+            * `retry_unavailable` - retry_unavailable
+            * `provider_check_pending` - provider_check_pending
       required:
       - detail
     ExecutionProviderJob:
@@ -1412,6 +1457,13 @@ components:
       - startedAt
       - state
       - workflowAcceptedAt
+    FieldErrors:
+      type: object
+      description: Validation messages keyed by field name, cursor or non_field_errors.
+      additionalProperties:
+        type: array
+        items:
+          type: string
     Health:
       type: object
       properties:

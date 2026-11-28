@@ -329,6 +329,7 @@ def test_workbench_preview_signs_short_reads_of_registered_versions(live_media, 
         response = http.get(preview["url"])
         assert response.status_code == 200 and response.content == f"preview {slot}".encode()
         assert response.headers["content-type"] == content_type == preview["contentType"]
+        assert response.headers["cache-control"] == "private, no-store"
         assert http.get(preview["url"].split("?", 1)[0]).status_code == 403
     other = create_leaf(scheduler, leaves.EpisodeEdit).task.schedule_id
     assert workbench.get(

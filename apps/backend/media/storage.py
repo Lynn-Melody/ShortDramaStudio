@@ -101,6 +101,7 @@ def sign_preview(upload):
                     "Key": upload.object_key,
                     "ResponseContentType": upload.content_type,
                     "ResponseContentDisposition": preview_disposition(upload.content_type),
+                    "ResponseCacheControl": "private, no-store",
                 },
                 ExpiresIn=PREVIEW_TTL_SECONDS,
                 HttpMethod="GET",

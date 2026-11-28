@@ -389,14 +389,13 @@ export interface components {
             profile: string;
         };
         /**
-         * @description * `invalid_credentials` - invalid_credentials
-         *     * `project_conflict` - project_conflict
+         * @description * `project_conflict` - project_conflict
          *     * `project_completed` - project_completed
          *     * `retry_unavailable` - retry_unavailable
          *     * `provider_check_pending` - provider_check_pending
          * @enum {string}
          */
-        CodeEnum: "invalid_credentials" | "project_conflict" | "project_completed" | "retry_unavailable" | "provider_check_pending";
+        CodeEnum: "project_conflict" | "project_completed" | "retry_unavailable" | "provider_check_pending";
         Delivery: {
             /** Format: uuid */
             id: string;
@@ -477,6 +476,14 @@ export interface components {
         };
         Error: {
             detail: string;
+            /**
+             * @description Present on 409 conflicts.
+             *
+             *     * `project_conflict` - project_conflict
+             *     * `project_completed` - project_completed
+             *     * `retry_unavailable` - retry_unavailable
+             *     * `provider_check_pending` - provider_check_pending
+             */
             code?: components["schemas"]["CodeEnum"];
         };
         ExecutionProviderJob: {
@@ -512,6 +519,10 @@ export interface components {
             providerJobs: components["schemas"]["ExecutionProviderJob"][];
             /** Format: date-time */
             providerJobsCheckedAt: string | null;
+        };
+        /** @description Validation messages keyed by field name, cursor or non_field_errors. */
+        FieldErrors: {
+            [key: string]: string[];
         };
         Health: {
             status: components["schemas"]["HealthStatusEnum"];
@@ -881,6 +892,14 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectList"];
                 };
             };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldErrors"];
+                };
+            };
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -902,7 +921,10 @@ export interface operations {
     projects_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -933,9 +955,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1102,9 +1122,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1189,9 +1207,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1328,7 +1344,10 @@ export interface operations {
     project_pause: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path: {
                 projectId: string;
             };
@@ -1373,7 +1392,10 @@ export interface operations {
     project_resume: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path: {
                 projectId: string;
             };
@@ -1447,9 +1469,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1508,9 +1528,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1610,7 +1628,10 @@ export interface operations {
     task_retry: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path: {
                 projectId: string;
                 taskId: string;
@@ -1675,7 +1696,10 @@ export interface operations {
     session_login: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1698,9 +1722,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["FieldErrors"];
                 };
             };
             403: {
@@ -1716,7 +1738,10 @@ export interface operations {
     session_logout: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description csrfToken from GET /api/v1/session. */
+                "X-CSRFToken": string;
+            };
             path?: never;
             cookie?: never;
         };

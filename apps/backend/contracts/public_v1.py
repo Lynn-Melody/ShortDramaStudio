@@ -1,5 +1,6 @@
 """Public workbench API v1 serializers. Responses are rendered through these classes."""
 
+from drf_spectacular.extensions import OpenApiSerializerExtension
 from rest_framework import serializers as s
 from rest_framework.exceptions import ValidationError
 
@@ -16,10 +17,7 @@ KIND_FILTERS = ("visual", *ASSET_KINDS, "delivery")
 ASSET_SCOPES = ("current", "shared", "all", "episode")
 RESOLVED_SCOPES = ("shared", "all", "episode")
 DOCUMENT_KINDS = ("plan", "script", "breakdown")
-ERROR_CODES = (
-    "invalid_credentials", "project_conflict", "project_completed", "retry_unavailable",
-    "provider_check_pending",
-)
+ERROR_CODES = ("project_conflict", "project_completed", "retry_unavailable", "provider_check_pending")
 IDEA_MAX_LENGTH = 10_000
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -89,7 +87,22 @@ class DeliveryQuery(s.Serializer):
 
 class Error(s.Serializer):
     detail = s.CharField()
-    code = s.ChoiceField(choices=ERROR_CODES, required=False)
+    code = s.ChoiceField(choices=ERROR_CODES, required=False, help_text="Present on 409 conflicts.")
+
+
+class FieldErrors(s.Serializer):
+    """400 body: messages keyed by request field, cursor, or non_field_errors."""
+
+
+class FieldErrorsSchema(OpenApiSerializerExtension):
+    target_class = FieldErrors
+
+    def map_serializer(self, auto_schema, direction):
+        return {
+            "type": "object",
+            "description": "Validation messages keyed by field name, cursor or non_field_errors.",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}},
+        }
 
 
 class Session(s.Serializer):
